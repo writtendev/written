@@ -30,6 +30,7 @@ your local git repository with zero network latency.
 
 - Go 1.25+
 - Git 2.40+
+- Node 22+ (only needed to work on `ui/` or `web/`)
 
 ### Building from Source
 
@@ -43,6 +44,12 @@ Run tests:
 
 ```bash
 make test
+```
+
+Run the full check (Go and TypeScript, what CI runs):
+
+```bash
+make check
 ```
 
 Install locally:

@@ -48,12 +48,88 @@ Planned repository layout (see `ARCHITECTURE.md` for the rationale):
 /internal/ui      — bubbletea models, widgets, theme
 /internal/app     — engine wiring, config, discovery
 /docs
+/ui               — shared TypeScript component package (npm workspace; contents land in WRTN-42)
+/web              — embedded Vite client for `written web` (npm workspace; UI lands later)
 ```
+
+`ui/` and `web/` are npm workspaces declared in the root `package.json`, so
+`web` resolves `ui` locally with no publish step. They are a second,
+independently-testable language in this repo, not a second copy of it: see
+`## Dispatch` below for the invariant that keeps the two from needing each
+other to be tested.
 
 ## Workflow
 
-`lerp.toml` is this repo's pipeline: Linear team `WRTN`, lanes provisioned
-as detached git worktrees. Read it before changing how runs are queued or
-what a stage is expected to produce.
+Build and test commands: `make build` and `make test` (Go); `make check` is
+the one command that covers both languages and is what CI runs — see
+`## Dispatch` below.
 
-Build and test commands: `go build ./...` and `go test ./...`.
+This repo's pipeline is the four-skill dispatch flow (`dispatch`,
+`implement-ticket`, `adversarial-review`, `merge-queue`) shipped by the
+`studio` plugin from the `writtendev` marketplace, declared in
+`.claude/settings.json`. `lerp.toml` is retired; there is no per-repo
+pipeline config file to read before changing how runs are queued — that
+policy lives in the skills themselves (see `studio`'s own repo) and the
+`## Dispatch` section below is this repo's opt-in and configuration for it.
+
+## Dispatch
+
+The per-repo configuration the `dispatch`, `implement-ticket`,
+`adversarial-review` and `merge-queue` skills read. Those skills are
+maintained once in the parent studio repo and are repo-generic; this section
+is how this repo opts into them. A field left unfilled is not a default —
+the skills are required to stop and say which one is missing rather than
+guess.
+
+- **Linear team key**: `WRTN` (ticket ids are `WRTN-<n>`).
+- **Check command**: `make check` — runs the Go suite (`test`, `race`,
+  `lint`) and the TypeScript gate (`ui`, `web` typecheck) and must pass
+  locally before any push, by an implementer, a fixer, or a human. CI runs
+  this same command (split across path-filtered jobs, see `.github/workflows/ci.yml`)
+  rather than enumerating its own list, so the local gate and CI cannot drift.
+- **Base branch**: `main`.
+- **Worktrees**: `.claude/worktrees/` — one worktree per ticket, named for it.
+- **Run manifest**: `.claude/worktrees/dispatch-manifest.md`.
+
+Statuses are Linear's stock ones — `Todo` → `In Progress` → `In Review` →
+`Done` — with two workspace labels doing the rest: `approved-to-merge` on a
+ticket in `In Review` means a human has approved its merge and it is in the
+merge queue; `needs-attention` means it needs a human and keeps whatever
+status it already had. `Backlog` is off-limits to dispatch: promoting a
+ticket to `Todo` is the only signal that it is available to work.
+
+### Review invariants
+
+What a reviewer of a change to this repo is adversarial about. A diff that
+breaks one of these is a major finding, not a nit.
+
+- **The self-hosted web server has no write authority.** Every HTTP route
+  `written web` exposes is read-only, or at most hands back a command for
+  the user to run themselves (git remains the only way state changes). A
+  route that accepts a mutation — a comment, a merge, a ref update, a
+  config write — reachable over HTTP is a finding regardless of auth.
+- **Signing is local, never server-side.** No code path lets the web
+  server hold, load, derive, or make a network call to reach a signing
+  key. A signing key or credential anywhere in `internal/app`'s HTTP
+  wiring, or in `web/`, is a finding even if it is never exercised.
+- **One binary, no runtime Node.** The web client is a static bundle
+  produced by `vite build` at compile time and embedded into the Go
+  binary; `written` never shells out to `node`, `npm`, or a bundler after
+  it is built. Any runtime dependency on a Node process, or a "run the
+  build step on first request" shortcut, is a finding.
+- **written consumes writ's public API only.** Per `## House rules`
+  above, all engine access goes through `github.com/writtendev/writ/engine`
+  with zero reach into writ internals. Importing a writ-internal package,
+  reading its SQLite projection file directly, or touching git plumbing
+  outside the engine's public contracts is a finding.
+- **Go and TypeScript stay independently testable.** `make check-go` must
+  pass without `node`/`npm` on `PATH`, and `make check-ts` must pass
+  without the Go toolchain; only the release build (`make build` plus the
+  TypeScript build) is allowed to need both. A change that makes either
+  half's tests quietly depend on the other is a finding — it is also what
+  would make the CI path filters lie about what they're skipping.
+- **Public repo, public history.** No secrets, tokens, or credentials in
+  any commit, and no mention of private repos, unreleased commercial
+  plans, or internal strategy documents in code, comments, commit
+  messages, or tickets referenced from them. Anything like this is a
+  finding regardless of how small.

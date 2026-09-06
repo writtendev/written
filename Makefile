@@ -9,7 +9,7 @@ endif
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS = -X $(PKG)/internal/app.Version=$(VERSION)
 
-.PHONY: build test race install clean
+.PHONY: build test race lint check-go check-ts check install clean
 
 build:
 	go build ./...
@@ -19,6 +19,19 @@ test:
 
 race:
 	go test -race ./...
+
+lint:
+	golangci-lint run ./...
+
+# check-go and check-ts are what CI's path-filtered jobs run, so a ui/web-only
+# change never pays for the Go suite and vice versa. check runs both, and is
+# the one command a release build (or a change touching both halves) needs.
+check-go: test race lint
+
+check-ts:
+	npm run typecheck --workspaces --if-present
+
+check: check-go check-ts
 
 install: ## Build and install written into Go's bin dir
 	go install -ldflags "$(LDFLAGS)" ./cmd/written
