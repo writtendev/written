@@ -1,0 +1,6 @@
+@import 'tailwindcss';
+
+/* Vite's `root: 'dev'` (see vite.config.ts) confines Tailwind v4's
+   automatic source detection to `dev/`. `src/` is what ships and what
+   the dev harness previews, so it must be added explicitly. */
+@source '../src';

@@ -2,7 +2,7 @@
   "name": "@writtendev/web",
   "version": "0.0.0",
   "private": true,
-  "description": "Embedded Vite client for `written web`. Built at compile time and served from the Go binary; the actual UI is out of scope for this ticket and lands once @writtendev/ui has real contents (WRTN-42).",
+  "description": "Embedded Vite client for `written web`. Built at compile time and served from the Go binary; the actual client UI lands once @writtendev/ui has real contents (WRTN-36 onward).",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,7 +13,7 @@
     "@writtendev/ui": "*"
   },
   "devDependencies": {
-    "typescript": "^5.6.3",
+    "typescript": "~6.0.2",
     "vite": "^8.2.2"
   }
 }

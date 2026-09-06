@@ -48,7 +48,7 @@ Planned repository layout (see `ARCHITECTURE.md` for the rationale):
 /internal/ui      — bubbletea models, widgets, theme
 /internal/app     — engine wiring, config, discovery
 /docs
-/ui               — shared TypeScript component package (npm workspace; contents land in WRTN-42)
+/ui               — shared TypeScript component package (npm workspace)
 /web              — embedded Vite client for `written web` (npm workspace; UI lands later)
 ```
 
@@ -57,6 +57,13 @@ Planned repository layout (see `ARCHITECTURE.md` for the rationale):
 independently-testable language in this repo, not a second copy of it: see
 `## Dispatch` below for the invariant that keeps the two from needing each
 other to be tested.
+
+`ui/` itself splits into `ui/src` — what ships, and the only directory a
+consumer's Tailwind `@source` points at — and `ui/dev`, a local dev harness
+for previewing `ui/src` in isolation that ships to nobody. Vite's `root`
+points at `ui/dev`, which confines Tailwind's automatic source detection
+there too, so `ui/dev/index.css` adds `@source '../src'` explicitly to pull
+`ui/src` into the harness's own build. See `ui/README.md`.
 
 ## Workflow
 
@@ -91,22 +98,28 @@ guess.
 
 - **Linear team key**: `WRTN` (ticket ids are `WRTN-<n>`).
 - **Check command**: `make check` — runs the Go suite (`test`, `race`,
-  `lint`) and the TypeScript gate (`ui`, `web` typecheck, a lockfile-sync
-  check equivalent to `npm ci`, and — via `check-ts`'s dependency on
-  `build-ts` — the `vite build` that produces `web`'s embedded bundle) and
-  must pass locally before any push, by an implementer, a fixer, or a
-  human. CI runs the same Makefile targets rather than enumerating its own
-  list: the path-filtered `go` job runs `make check-go`, the path-filtered
-  `ts` job runs `make check-ts` (which already covers `build-ts`), and the
-  always-on `build` job runs `make build` and `make build-ts` again —
-  redundant with `check-ts` when a change touches `ui`/`web`, but the only
-  place that still exercises `build-ts` when a change is Go-only and the
-  `ts` job is path-filtered out (see `.github/workflows/ci.yml`). The
-  property this guarantees is narrower than "every command a CI job runs
-  is a Makefile target" and more useful: **a tree that passes `make check`
-  locally will pass CI.** Two things in `ci.yml` sit outside a Makefile
-  target on purpose, and neither can produce the drift this guarantees
-  against — see the pipeline-integrity invariant below for why.
+  `lint`) and the TypeScript gate. `check-ts` first guards that
+  `node_modules` is actually installed (naming `npm ci` if not, rather than
+  failing deep inside some other tool), then runs a lockfile-sync check
+  equivalent to `npm ci`, typecheck across `ui`/`web`, `eslint . --max-warnings
+  0` and `prettier --check` at the repo root (covering `ui/` and `web/`),
+  and — via `check-ts`'s dependency on `build-ts` — both the `vite build`
+  that produces `web`'s embedded bundle and `ui`'s own dev-harness build
+  (`build:harness`, which is what exercises the Tailwind `@source` wiring
+  described under `## Layout`). All of this must pass locally before any
+  push, by an implementer, a fixer, or a human. CI runs the same Makefile
+  targets rather than enumerating its own list: the path-filtered `go` job
+  runs `make check-go`, the path-filtered `ts` job runs `make check-ts`
+  (which already covers `build-ts`), and the always-on `build` job runs
+  `make build` and `make build-ts` again — redundant with `check-ts` when a
+  change touches `ui`/`web`, but the only place that still exercises
+  `build-ts` when a change is Go-only and the `ts` job is path-filtered out
+  (see `.github/workflows/ci.yml`). The property this guarantees is
+  narrower than "every command a CI job runs is a Makefile target" and more
+  useful: **a tree that passes `make check` locally will pass CI.** Two
+  things in `ci.yml` sit outside a Makefile target on purpose, and neither
+  can produce the drift this guarantees against — see the pipeline-integrity
+  invariant below for why.
 - **Base branch**: `main`.
 - **Worktrees**: `.claude/worktrees/` — one worktree per ticket, named for it.
 - **Run manifest**: `.claude/worktrees/dispatch-manifest.md`.
@@ -185,3 +198,32 @@ breaks one of these is a major finding, not a nit.
   a gate. Prove either one the way a reviewer would: break the thing the
   gate is supposed to catch and confirm the command actually exits
   non-zero.
+
+The following six, scoped to `ui/`, come from `written-ui`'s own `AGENTS.md`
+and moved here verbatim with it in `WRTN-42`:
+
+- **`ui/` ships as source, not as a compiled library.** Each consumer's
+  Tailwind build scans it as its own code. Anything that assumes a build
+  step here — a bundler artifact, a precompiled stylesheet, an entry point
+  that only works post-build — breaks that and is a finding.
+- **No dynamically constructed class names.** Every class name is a
+  literal string. Template interpolation, string concatenation, or a
+  lookup that assembles a class at runtime is invisible to Tailwind's
+  scanner, so the styles simply will not exist in the consumer's build. A
+  map from variant to a whole literal class string is fine; a map that
+  builds one from fragments is not.
+- **All theming goes through CSS custom properties.** Components never
+  reference raw values — no hex codes, no pixel literals, no named colors
+  inline in a component.
+- **`tokens.css` is the single source of design values, and lives in
+  `ui/src/`.** A component that needs a value it doesn't have adds a token
+  there; it does not inline one locally. An inlined value is a finding even
+  when it looks identical to an existing token.
+- **No caller-situation flags on components.** No `isPaid`, `isAdmin`,
+  `isLoggedIn`, or any other prop that encodes the caller's circumstances.
+  Variation comes from composition, children, and render props. A
+  component that has to know who is looking at it has the wrong shape.
+- **No component beyond `Button`, `Badge`, and one text/heading primitive
+  without an explicit decision.** A PR that adds a fourth component
+  without a ticket that says to is a finding, however reasonable the
+  component is on its own.

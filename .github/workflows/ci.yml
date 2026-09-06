@@ -10,9 +10,11 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  # Cancel a superseded PR run, but never a run on main: two pushes to main
-  # close together should both finish, not race each other to a partial result.
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  # Cancel superseded runs on the same ref (e.g. a second push to a PR)
+  # instead of letting both finish. Scoped to pull_request only: two
+  # `push: main` runs share a ref too, and cancelling the first would
+  # leave a commit on main with no completed check.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
@@ -38,6 +40,10 @@ jobs:
               - 'package-lock.json'
               - 'ui/**'
               - 'web/**'
+              - 'eslint.config.js'
+              - '.prettierrc.json'
+              - '.prettierignore'
+              - '.nvmrc'
               - 'Makefile'
               - '.github/workflows/ci.yml'
 

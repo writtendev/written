@@ -9,10 +9,29 @@ LDFLAGS = -X $(PKG)/internal/app.Version=$(VERSION)
 # passing locally and disagreeing with CI.
 GOLANGCI_LINT_VERSION := v1.64.8
 
-.PHONY: build build-ts test race lint check-go check-ts check install clean
+.PHONY: build build-ts test race lint check-go check-ts check install clean check-node-modules
 
 build:
 	go build ./...
+
+# Fails naming the command to run instead of letting build-ts/check-ts die
+# partway through with a bare "vite: command not found". Checks the actual
+# binaries those targets need, not just that node_modules/ exists — a
+# partial or stale install (an interrupted `npm ci`, a manifest changed
+# after the last install) is the same failure as no install at all.
+#
+# Verifies, does not install: `make check` is a gate, not a package
+# manager. Auto-running `npm ci` here would mutate node_modules on every
+# invocation and could silently paper over the lockfile drift that
+# check-ts's own `npm ci --dry-run` step exists to catch. Same treatment
+# `lint` already gives golangci-lint above — consistency, not new policy.
+check-node-modules:
+	@for bin in vite tsc eslint prettier; do \
+		if [ ! -x "node_modules/.bin/$$bin" ]; then \
+			echo "node_modules is missing or incomplete — run 'npm ci' (see README's Prerequisites)" >&2; \
+			exit 1; \
+		fi; \
+	done
 
 # The TypeScript half of the release build: a static bundle `written web`
 # embeds at compile time. This is a Makefile target (not a bare npm command
@@ -30,7 +49,7 @@ build:
 # explicitly opt out with `"buildless": true`, so a workspace silently
 # missing both — not named in any allowlist — fails loudly instead of being
 # skipped.
-build-ts:
+build-ts: check-node-modules
 	@node -e "const r=require('./package.json');const missing=r.workspaces.filter(w=>{let p;try{p=require('./'+w+'/package.json')}catch(e){return true}return !(p.scripts&&p.scripts.build)&&p.buildless!==true});if(missing.length){console.error('workspace(s) with no build script and no buildless:true opt-out: '+missing.join(', '));process.exit(1)}"
 	npm run build --workspaces --if-present
 
@@ -64,15 +83,26 @@ check-go: test race lint
 # promises `make check` rules out. build-ts already needs npm/node the same
 # as the rest of this target, so this does not give check-go a Node
 # dependency — see `## Dispatch`'s independent-toolchains invariant.
+#
+# build-ts's own check-node-modules prerequisite runs first (before any of
+# the steps below), so a fresh clone sees the "run npm ci" message rather
+# than build-ts's own failure. `--max-warnings 0` and `format:check` are
+# what make eslint/prettier warnings a hard failure instead of a quiet
+# pass; `build:harness` is what exercises `ui`'s dev harness build (and the
+# `@source '../src'` Tailwind wiring) so that path isn't covered by no gate
+# at all — see ui/package.json's `build:harness` script.
 check-ts: build-ts
-	@node -e "const r=require('./package.json');const missing=r.workspaces.filter(w=>{try{return !require('./'+w+'/package.json').scripts.typecheck}catch(e){return true}});if(missing.length){console.error('missing typecheck script in workspace(s): '+missing.join(', '));process.exit(1)}"
 	@# `npm ci` is CI's real gate (its lock-vs-manifest check), and it isn't
 	@# a Makefile target — see AGENTS.md's `## Dispatch` section. `--dry-run`
 	@# runs that same check without touching node_modules, so a dependency
 	@# added to a workspace's package.json without a regenerated
 	@# package-lock.json fails here instead of only in CI.
 	npm ci --dry-run
+	@node -e "const r=require('./package.json');const missing=r.workspaces.filter(w=>{try{return !require('./'+w+'/package.json').scripts.typecheck}catch(e){return true}});if(missing.length){console.error('missing typecheck script in workspace(s): '+missing.join(', '));process.exit(1)}"
 	npm run typecheck --workspaces --if-present
+	npm run lint
+	npm run format:check
+	npm run build:harness -w @writtendev/ui
 
 check: check-go check-ts
 
