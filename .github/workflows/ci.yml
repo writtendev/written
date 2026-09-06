@@ -43,6 +43,7 @@ jobs:
               - 'eslint.config.js'
               - '.prettierrc.json'
               - '.prettierignore'
+              - '.gitignore'
               - '.nvmrc'
               - 'Makefile'
               - '.github/workflows/ci.yml'
