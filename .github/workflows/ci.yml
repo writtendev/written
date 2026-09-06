@@ -38,6 +38,7 @@ jobs:
               - 'package-lock.json'
               - 'ui/**'
               - 'web/**'
+              - 'Makefile'
               - '.github/workflows/ci.yml'
 
   # Go suite: skipped entirely when a change only touches ui/ or web/.
@@ -96,4 +97,23 @@ jobs:
           cache: npm
       - run: npm ci
       - run: make build
-      - run: npm run build --workspaces --if-present
+      - run: make build-ts
+
+  # Fan-in gate: succeeds only if none of the jobs above failed or were
+  # cancelled. `if: always()` makes it run even when a path-filtered job is
+  # skipped, so this — not `go`/`ts`/`build` individually — is what branch
+  # protection should require. Without it, a required-but-skipped job (e.g.
+  # `ts` on a Go-only PR) would block merging forever.
+  ci:
+    name: ci
+    needs: [changes, go, ts, build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check required jobs
+        run: |
+          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ] || \
+             [ "${{ contains(needs.*.result, 'cancelled') }}" = "true" ]; then
+            echo "one or more required jobs failed"
+            exit 1
+          fi

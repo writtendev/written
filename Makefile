@@ -1,18 +1,19 @@
 PKG := github.com/writtendev/written
 
-# Resolve the install dir the way the go tool does: GOBIN when set, else GOPATH/bin.
-GOBIN := $(shell go env GOBIN)
-ifeq ($(GOBIN),)
-GOBIN := $(shell go env GOPATH)/bin
-endif
-
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS = -X $(PKG)/internal/app.Version=$(VERSION)
 
-.PHONY: build test race lint check-go check-ts check install clean
+.PHONY: build build-ts test race lint check-go check-ts check install clean
 
 build:
 	go build ./...
+
+# The TypeScript half of the release build: a static bundle `written web`
+# embeds at compile time. This is a Makefile target (not a bare npm command
+# in CI's YAML) so the always-on `build` job runs nothing that `make` doesn't
+# also know how to run — see AGENTS.md's `## Dispatch` review invariants.
+build-ts:
+	npm run build --workspaces --if-present
 
 test:
 	go test ./...
@@ -29,13 +30,16 @@ lint:
 check-go: test race lint
 
 check-ts:
+	@node -e "const r=require('./package.json');const missing=r.workspaces.filter(w=>{try{return !require('./'+w+'/package.json').scripts.typecheck}catch(e){return true}});if(missing.length){console.error('missing typecheck script in workspace(s): '+missing.join(', '));process.exit(1)}"
 	npm run typecheck --workspaces --if-present
 
 check: check-go check-ts
 
 install: ## Build and install written into Go's bin dir
-	go install -ldflags "$(LDFLAGS)" ./cmd/written
-	@printf 'installed %s to %s\n' '$(VERSION)' '$(GOBIN)/written'
+	@GOBIN="$$(go env GOBIN)"; \
+	if [ -z "$$GOBIN" ]; then GOBIN="$$(go env GOPATH)/bin"; fi; \
+	go install -ldflags "$(LDFLAGS)" ./cmd/written; \
+	printf 'installed %s to %s\n' '$(VERSION)' "$$GOBIN/written"
 
 clean:
 	go clean

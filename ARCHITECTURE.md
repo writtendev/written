@@ -25,6 +25,8 @@ Written is an application and reference client, not a library or SDK.
 /internal/app     — Repository discovery, engine initialization, configuration, event streaming
 /internal/ui      — Bubble Tea root models, view routers, UI widgets, keymaps, Lipgloss themes
 /docs             — Design specs, navigation maps, user guides, and architecture documentation
+/ui               — Shared TypeScript component package, consumed by /web (npm workspace)
+/web              — Embedded Vite client for `written web` (npm workspace)
 ```
 
 ### Component breakdown
@@ -54,6 +56,12 @@ The terminal user interface built on Charm's Bubble Tea ecosystem.
 #### `/docs`
 Project documentation, user quickstarts, ASCII screen wireframes, and UX specifications.
 
+#### `/ui`
+A shared TypeScript component package (`@writtendev/ui`), npm workspace. Typechecked but not built or published: `web` resolves it directly from `src/` through npm workspace linking, so there is no compiled `dist/` and no version to publish. Contents land in `WRTN-42`; this ticket only establishes the workspace shape.
+
+#### `/web`
+The embedded browser client for `written web` (`@writtendev/web`), npm workspace, built with Vite. `vite build` produces a static bundle at compile time that the Go binary embeds; see decision 5 below and `## Dispatch`'s "one binary, no runtime Node" invariant in `AGENTS.md`.
+
 ## Settled technical decisions
 
 ### 1. UI Framework: Bubble Tea & Lipgloss
@@ -71,3 +79,8 @@ Project documentation, user quickstarts, ASCII screen wireframes, and UX specifi
 ### 4. Dual client delivery (`written` and `written web`)
 - **Decision:** Ship both the reference TUI and the local HTTP server in the same Go binary.
 - **Rationale:** Both clients consume the exact same underlying engine abstractions and discovery logic. The TUI serves as the primary reference client; the web server (`written web`) provides a lightweight browser interface without duplicating backend plumbing.
+
+### 5. TypeScript workspace split (`ui`, `web`)
+- **Decision:** `written web` needs a browser client, and a Go binary is not where that gets built. `ui/` and `web/` are npm workspaces declared in the root `package.json`: `web/` is the Vite application shell that becomes the static bundle `written web` embeds and serves; `ui/` is the shared component package `web/` imports. They are a second, independently-testable language living in this repo, not a second copy of it — see decision 4 and `AGENTS.md`'s `## Dispatch` invariant that Go and TypeScript must each test without the other's toolchain on `PATH`.
+- **Why two packages instead of one:** Splitting components (`ui/`) from the application shell (`web/`) keeps the component surface reviewable and typecheckable on its own, and gives it room to be reused by more than one client later without that reuse forcing a refactor. `web/` depends on `ui/` through npm workspace linking (resolved to `ui/src` directly, no publish step); `ui/` has no Go equivalent and no reach into `internal/` — the split exists entirely on the TypeScript side.
+- **Rationale for a compiled JS toolchain instead of a Go-native UI:** `written web`'s surface is a browser page, and browsers run JavaScript. Vite is the boring, standard choice for compiling and bundling that page into the static assets the Go binary embeds at build time; nothing about it changes decision 4 — `written` still ships as one binary with no runtime Node process.

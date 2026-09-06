@@ -31,6 +31,7 @@ your local git repository with zero network latency.
 - Go 1.25+
 - Git 2.40+
 - Node 22+ (only needed to work on `ui/` or `web/`)
+- [golangci-lint](https://golangci-lint.run) v1.64.8+ (required by `make check`'s lint step)
 
 ### Building from Source
 
@@ -46,7 +47,7 @@ Run tests:
 make test
 ```
 
-Run the full check (Go and TypeScript, what CI runs):
+Run the full check (Go and TypeScript; CI runs these same Makefile targets, see `AGENTS.md`'s `## Dispatch` section):
 
 ```bash
 make check

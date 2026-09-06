@@ -61,13 +61,18 @@ other to be tested.
 ## Workflow
 
 Build and test commands: `make build` and `make test` (Go); `make check` is
-the one command that covers both languages and is what CI runs — see
-`## Dispatch` below.
+the one command that covers both languages for local development. CI runs
+the same Makefile targets, split across path-filtered jobs, rather than
+enumerating its own list — see `## Dispatch` below for exactly which target
+each job runs.
 
 This repo's pipeline is the four-skill dispatch flow (`dispatch`,
 `implement-ticket`, `adversarial-review`, `merge-queue`) shipped by the
 `studio` plugin from the `writtendev` marketplace, declared in
-`.claude/settings.json`. `lerp.toml` is retired; there is no per-repo
+`.claude/settings.local.json`. That file is local — created by
+`bin/wire-repo` in the `studio` repo, not tracked here (see `.gitignore`) —
+so a fresh clone runs `bin/wire-repo` to get it before dispatch will work.
+`lerp.toml` is retired; there is no per-repo
 pipeline config file to read before changing how runs are queued — that
 policy lives in the skills themselves (see `studio`'s own repo) and the
 `## Dispatch` section below is this repo's opt-in and configuration for it.
@@ -85,8 +90,13 @@ guess.
 - **Check command**: `make check` — runs the Go suite (`test`, `race`,
   `lint`) and the TypeScript gate (`ui`, `web` typecheck) and must pass
   locally before any push, by an implementer, a fixer, or a human. CI runs
-  this same command (split across path-filtered jobs, see `.github/workflows/ci.yml`)
-  rather than enumerating its own list, so the local gate and CI cannot drift.
+  the same Makefile targets rather than enumerating its own list: the
+  path-filtered `go` job runs `make check-go`, the path-filtered `ts` job
+  runs `make check-ts`, and the always-on `build` job runs `make build` and
+  `make build-ts` (see `.github/workflows/ci.yml`). Every command a CI job
+  runs exists as a Makefile target, so the local gate and CI cannot drift —
+  a job that started enumerating its own steps in YAML instead would be a
+  violation of the pipeline-integrity invariant below.
 - **Base branch**: `main`.
 - **Worktrees**: `.claude/worktrees/` — one worktree per ticket, named for it.
 - **Run manifest**: `.claude/worktrees/dispatch-manifest.md`.
@@ -133,3 +143,14 @@ breaks one of these is a major finding, not a nit.
   plans, or internal strategy documents in code, comments, commit
   messages, or tickets referenced from them. Anything like this is a
   finding regardless of how small.
+- **The check gate can fail, and CI runs nothing it doesn't.** Every
+  command a CI job invokes must resolve to a Makefile target — a job that
+  enumerates its own build/lint/test steps directly in YAML with no
+  Makefile counterpart is a finding, because it lets CI's coverage exceed
+  `make check` (or its declared siblings) silently, which is the local
+  gate and CI drifting apart. A flag or script that can report success by
+  skipping work it was supposed to do — an unguarded `--if-present`, a
+  target that no-ops when a tool or workspace is missing instead of
+  failing — is equally a finding: a gate that cannot fail is not a gate.
+  Prove either one the way a reviewer would: break the thing the gate is
+  supposed to catch and confirm the command actually exits non-zero.

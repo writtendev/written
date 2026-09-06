@@ -68,6 +68,10 @@ race, lint) or `make check-ts` (typecheck across the `ui`/`web` workspaces,
 after `npm install`). `make build` and `make test` remain for a plain Go
 build/test loop.
 
+`check-go`'s lint step requires [golangci-lint](https://golangci-lint.run)
+v1.64.8+ on `PATH` (see README's Prerequisites) — `make` does not install
+it for you.
+
 CI runs `make check-go` on Go changes, `make check-ts` on `ui`/`web`
 changes, and a release `build` job that always runs both — see `AGENTS.md`'s
 `## Dispatch` section for the review invariant this depends on (Go and
