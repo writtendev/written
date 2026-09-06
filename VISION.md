@@ -75,23 +75,26 @@ and performance characteristics as the official reference client.
 
 ## The web surface is local, and signing stays with the operator
 
-`written web` (item 5 above) is a local surface for the person at the
-machine, not a hosted service: it binds to localhost only, and nothing
-about its configuration is meant to make that a network-facing address.
-Through it, the browser reaches the same engine the TUI does — opening an
-issue, commenting, editing, changing status are signed, append-only
-entries attributed to whoever performed them, and the web server writes
-them exactly as the TUI would.
+`written web` — the local web interface named above under *What Written
+is* — is a local surface for the person at the machine, not a hosted
+service: it binds to localhost only, and its bind address is not
+configurable — no flag, environment variable, or config file changes what
+interface it listens on. Through it, the browser reaches the same engine
+the TUI does — opening an issue, commenting, editing, changing status are
+signed, append-only entries attributed to whoever performed them, and the
+web server writes them exactly as the TUI would.
 
 Approving is where this stops. An approval's entire value is that it is
 evidence a specific human approved something, checkable offline by someone
 who does not trust the machine it came from — and that property only
-holds while producing one requires a deliberate act by a human holding a
-key. So signing itself always happens locally, with the operator's own
-key, and never inside a long-running server process: `written web` may
-hand back the command for the operator to run in their own terminal, but
-it never holds, loads, derives, or reaches a signing key to complete an
-approval on its own.
+holds while producing one requires a deliberate act by a human at the key,
+for that specific approval. So `written web` never holds unattended
+signing authority: no code path may let it produce a valid approval on its
+own, without a human acting at the key in the moment. It may hand back the
+command for the operator to run in their own terminal, or route the
+request through a confirming agent — `ssh-agent -c`, a hardware key touch
+— since that still requires the human to be present at the key; what it
+may never do is complete an approval by itself, unattended.
 
 ## Performance and user experience principles
 

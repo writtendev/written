@@ -31,7 +31,7 @@ your local git repository with zero network latency.
 - Go 1.25+
 - Git 2.40+
 - Node 22+ (only needed to work on `ui/` or `web/`)
-- [golangci-lint](https://golangci-lint.run) v1.64.8+ (required by `make check`'s lint step)
+- [golangci-lint](https://golangci-lint.run) v1.64.8 (the exact version CI pins; required by `make check`'s lint step)
 
 ### Building from Source
 

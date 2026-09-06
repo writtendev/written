@@ -69,34 +69,40 @@ each job runs.
 This repo's pipeline is the four-skill dispatch flow (`dispatch`,
 `implement-ticket`, `adversarial-review`, `merge-queue`) shipped by the
 `studio` plugin from the `writtendev` marketplace, declared in
-`.claude/settings.local.json`. That file is local — created by
-`bin/wire-repo` in the `studio` repo, not tracked here (see `.gitignore`) —
-so a fresh clone runs `bin/wire-repo` to get it before dispatch will work.
-`lerp.toml` is retired; there is no per-repo
-pipeline config file to read before changing how runs are queued — that
-policy lives in the skills themselves (see `studio`'s own repo) and the
-`## Dispatch` section below is this repo's opt-in and configuration for it.
+`.claude/settings.local.json`. That file is internal dispatch-pipeline
+configuration — local, not tracked here (see `.gitignore`), and generated
+by tooling that is not public. It is not needed to build, test, or
+contribute to `written`; a fresh clone builds, tests, and passes `make
+check` without it, and it only matters if you're running the dispatch
+pipeline itself. `lerp.toml` is retired; there is no per-repo pipeline
+config file to read before changing how runs are queued — that policy
+lives in the dispatch skills themselves, maintained once outside this
+repo and repo-generic — and the `## Dispatch` section below is this
+repo's opt-in and configuration for it.
 
 ## Dispatch
 
 The per-repo configuration the `dispatch`, `implement-ticket`,
 `adversarial-review` and `merge-queue` skills read. Those skills are
-maintained once in the parent studio repo and are repo-generic; this section
+maintained once, outside this repo, and are repo-generic; this section
 is how this repo opts into them. A field left unfilled is not a default —
 the skills are required to stop and say which one is missing rather than
 guess.
 
 - **Linear team key**: `WRTN` (ticket ids are `WRTN-<n>`).
 - **Check command**: `make check` — runs the Go suite (`test`, `race`,
-  `lint`) and the TypeScript gate (`ui`, `web` typecheck) and must pass
-  locally before any push, by an implementer, a fixer, or a human. CI runs
-  the same Makefile targets rather than enumerating its own list: the
-  path-filtered `go` job runs `make check-go`, the path-filtered `ts` job
-  runs `make check-ts`, and the always-on `build` job runs `make build` and
-  `make build-ts` (see `.github/workflows/ci.yml`). Every command a CI job
-  runs exists as a Makefile target, so the local gate and CI cannot drift —
-  a job that started enumerating its own steps in YAML instead would be a
-  violation of the pipeline-integrity invariant below.
+  `lint`) and the TypeScript gate (`ui`, `web` typecheck, plus a
+  lockfile-sync check equivalent to `npm ci`) and must pass locally before
+  any push, by an implementer, a fixer, or a human. CI runs the same
+  Makefile targets rather than enumerating its own list: the path-filtered
+  `go` job runs `make check-go`, the path-filtered `ts` job runs
+  `make check-ts`, and the always-on `build` job runs `make build` and
+  `make build-ts` (see `.github/workflows/ci.yml`). The property this
+  guarantees is narrower than "every command a CI job runs is a Makefile
+  target" and more useful: **a tree that passes `make check` locally will
+  pass CI.** Two things in `ci.yml` sit outside a Makefile target on
+  purpose, and neither can produce the drift this guarantees against —
+  see the pipeline-integrity invariant below for why.
 - **Base branch**: `main`.
 - **Worktrees**: `.claude/worktrees/` — one worktree per ticket, named for it.
 - **Run manifest**: `.claude/worktrees/dispatch-manifest.md`.
@@ -118,14 +124,18 @@ breaks one of these is a major finding, not a nit.
   local-only web surface statement). Binding to any interface other than
   localhost, or making the bind address configurable to one, is a
   finding.
-- **The web server never holds signing authority.** It may create, edit,
-  and read any op the engine supports — ordinary mutations reachable over
-  HTTP are the intended design, not a violation — but no code path may
-  let it hold, load, derive, or reach a signing key (see `VISION.md`'s
-  local-signing statement). The approve path hands the operator the
-  command to run in their own terminal — `written approve <id>` — rather
-  than signing for them. An approval that completes entirely inside the
-  server process is a finding, however convenient.
+- **The web server never holds unattended signing authority.** It may
+  create, edit, and read any op the engine supports — ordinary mutations
+  reachable over HTTP are the intended design, not a violation — but no
+  code path may let it produce a valid approval without a human acting at
+  the key for that specific approval (see `VISION.md`'s local-signing
+  statement). The approve path hands the operator the command to run in
+  their own terminal — `written approve <id>` — rather than signing for
+  them; routing through a confirming agent (`ssh-agent -c`, a hardware key
+  touch) is equally fine, since that still stops on the human's presence
+  at the key. An approval that completes entirely inside the server
+  process, with no human act at the key in the moment, is a finding,
+  however convenient.
 - **One binary, no runtime Node.** The web client is a static bundle
   produced by `vite build` at compile time and embedded into the Go
   binary; `written` never shells out to `node`, `npm`, or a bundler after
@@ -147,14 +157,23 @@ breaks one of these is a major finding, not a nit.
   plans, or internal strategy documents in code, comments, commit
   messages, or tickets referenced from them. Anything like this is a
   finding regardless of how small.
-- **The check gate can fail, and CI runs nothing it doesn't.** Every
-  command a CI job invokes must resolve to a Makefile target — a job that
-  enumerates its own build/lint/test steps directly in YAML with no
-  Makefile counterpart is a finding, because it lets CI's coverage exceed
-  `make check` (or its declared siblings) silently, which is the local
-  gate and CI drifting apart. A flag or script that can report success by
-  skipping work it was supposed to do — an unguarded `--if-present`, a
-  target that no-ops when a tool or workspace is missing instead of
-  failing — is equally a finding: a gate that cannot fail is not a gate.
-  Prove either one the way a reviewer would: break the thing the gate is
-  supposed to catch and confirm the command actually exits non-zero.
+- **The check gate can fail, and a tree that passes it passes CI.** Every
+  command a CI job runs to build, lint, test, or typecheck must resolve to
+  a Makefile target — a job that enumerates its own such steps directly in
+  YAML with no Makefile counterpart is a finding, because it lets CI's
+  coverage exceed `make check` (or its declared siblings) silently, which
+  is the local gate and CI drifting apart. Two kinds of step are exempt,
+  because neither can cause that drift: toolchain provisioning (installing
+  `golangci-lint`, `node`, or `npm` itself — a missing or wrong-version
+  toolchain fails the very next step obviously, it doesn't pass quietly)
+  and the `ci` fan-in job's own pass/fail aggregation script (it only reads
+  other jobs' results; it has no coverage of its own to diverge from
+  `make check`). `npm ci` is not exempt on this basis — its lockfile-sync
+  check is a real gate a tree can fail, so `check-ts` runs the equivalent
+  check (`npm ci --dry-run`) itself. A flag or script that can report
+  success by skipping work it was supposed to do — an unguarded
+  `--if-present`, a target that no-ops when a tool or workspace is missing
+  instead of failing — is equally a finding: a gate that cannot fail is not
+  a gate. Prove either one the way a reviewer would: break the thing the
+  gate is supposed to catch and confirm the command actually exits
+  non-zero.

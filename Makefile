@@ -12,7 +12,15 @@ build:
 # embeds at compile time. This is a Makefile target (not a bare npm command
 # in CI's YAML) so the always-on `build` job runs nothing that `make` doesn't
 # also know how to run — see AGENTS.md's `## Dispatch` review invariants.
+#
+# `--if-present` alone lets a missing/renamed/typo'd `build` script in `web`
+# exit 0 having produced nothing — the invariant-7 defect. `ui/` deliberately
+# has no `build` script (see ui/package.json), so this can't require every
+# workspace to declare one the way check-ts's guard does; instead it names
+# the workspace(s) that must produce a bundle and fails loudly if one of
+# them doesn't declare `build`.
 build-ts:
+	@node -e "const must=['web'];const missing=must.filter(w=>{try{return !require('./'+w+'/package.json').scripts.build}catch(e){return true}});if(missing.length){console.error('missing build script in workspace(s): '+missing.join(', '));process.exit(1)}"
 	npm run build --workspaces --if-present
 
 test:
@@ -31,6 +39,12 @@ check-go: test race lint
 
 check-ts:
 	@node -e "const r=require('./package.json');const missing=r.workspaces.filter(w=>{try{return !require('./'+w+'/package.json').scripts.typecheck}catch(e){return true}});if(missing.length){console.error('missing typecheck script in workspace(s): '+missing.join(', '));process.exit(1)}"
+	@# `npm ci` is CI's real gate (its lock-vs-manifest check), and it isn't
+	@# a Makefile target — see AGENTS.md's `## Dispatch` section. `--dry-run`
+	@# runs that same check without touching node_modules, so a dependency
+	@# added to a workspace's package.json without a regenerated
+	@# package-lock.json fails here instead of only in CI.
+	npm ci --dry-run
 	npm run typecheck --workspaces --if-present
 
 check: check-go check-ts

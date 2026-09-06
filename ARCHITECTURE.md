@@ -78,7 +78,7 @@ The embedded browser client for `written web` (`@writtendev/web`), npm workspace
 
 ### 4. Dual client delivery (`written` and `written web`)
 - **Decision:** Ship both the reference TUI and the local HTTP server in the same Go binary.
-- **Rationale:** Both clients consume the exact same underlying engine abstractions and discovery logic. The TUI serves as the primary reference client; the web server (`written web`) provides a lightweight browser interface without duplicating backend plumbing.
+- **Rationale:** Both clients consume the exact same underlying engine abstractions and discovery logic, with one asymmetry — signing an approval always requires a human act at the key, regardless of which client requested it (see `VISION.md`'s local-signing statement). The TUI serves as the primary reference client; the web server (`written web`) provides a lightweight browser interface without duplicating backend plumbing.
 
 ### 5. TypeScript workspace split (`ui`, `web`)
 - **Decision:** `written web` needs a browser client, and a Go binary is not where that gets built. `ui/` and `web/` are npm workspaces declared in the root `package.json`: `web/` is the Vite application shell that becomes the static bundle `written web` embeds and serves; `ui/` is the shared component package `web/` imports. They are a second, independently-testable language living in this repo, not a second copy of it — see decision 4 and `AGENTS.md`'s `## Dispatch` invariant that Go and TypeScript must each test without the other's toolchain on `PATH`.
