@@ -103,11 +103,15 @@ guess.
   failing deep inside some other tool), then runs a lockfile-sync check
   equivalent to `npm ci`, typecheck across `ui`/`web`, `eslint . --max-warnings
   0` and `prettier --check` at the repo root (covering `ui/` and `web/`),
-  and — via `check-ts`'s dependency on `build-ts` — both the `vite build`
-  that produces `web`'s embedded bundle and `ui`'s own dev-harness build
-  (`build:harness`, which is what exercises the Tailwind `@source` wiring
-  described under `## Layout`). All of this must pass locally before any
-  push, by an implementer, a fixer, or a human. CI runs the same Makefile
+  and — via `check-ts`'s dependency on `build-ts` — the `vite build` that
+  produces `web`'s embedded bundle. `ui` is `buildless: true` (see
+  `## Layout`), so `build-ts` does not touch it; `check-ts` instead runs
+  `ui`'s own dev-harness build as a separate, explicit step
+  (`build:harness`, which is what exercises the Tailwind `@source` wiring)
+  after `build-ts` completes — deleting that line would remove the only
+  gate on that wiring, not leave it covered by `build-ts`. All of this must
+  pass locally before any push, by an implementer, a fixer, or a human. CI
+  runs the same Makefile
   targets rather than enumerating its own list: the path-filtered `go` job
   runs `make check-go`, the path-filtered `ts` job runs `make check-ts`
   (which already covers `build-ts`), and the always-on `build` job runs

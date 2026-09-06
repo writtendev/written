@@ -9,10 +9,24 @@ LDFLAGS = -X $(PKG)/internal/app.Version=$(VERSION)
 # passing locally and disagreeing with CI.
 GOLANGCI_LINT_VERSION := v1.64.8
 
+# Explicit package roots, not `./...`. This module's Go code lives entirely
+# under cmd/ and internal/ (see AGENTS.md's `## Layout`); `./...` also walks
+# node_modules/, and an npm dependency can ship Go source with no go.mod of
+# its own to draw a module boundary (eslint -> file-entry-cache -> flat-cache
+# -> flatted, which vendors golang/pkg/flatted/flatted.go). That would make
+# `go build/test/race` and `golangci-lint run` compile, run and lint
+# third-party code that arrived via npm, and make the Go package set differ
+# by whether `npm ci` had been run — exactly what `## Dispatch`'s
+# independent-toolchains invariant forbids. Spelling out the roots keeps
+# node_modules out of scope regardless of what any dependency vendors, with
+# no dependency on node_modules being absent or on any npm package's
+# internals.
+GO_PACKAGES := ./cmd/... ./internal/...
+
 .PHONY: build build-ts test race lint check-go check-ts check install clean check-node-modules
 
 build:
-	go build ./...
+	go build $(GO_PACKAGES)
 
 # Fails naming the command to run instead of letting build-ts/check-ts die
 # partway through with a bare "vite: command not found". Checks the actual
@@ -54,10 +68,10 @@ build-ts: check-node-modules
 	npm run build --workspaces --if-present
 
 test:
-	go test ./...
+	go test $(GO_PACKAGES)
 
 race:
-	go test -race ./...
+	go test -race $(GO_PACKAGES)
 
 # See GOLANGCI_LINT_VERSION above: asserts the binary on PATH matches what
 # CI pins before running it, so version skew fails here instead of passing
@@ -69,7 +83,7 @@ lint:
 		echo "golangci-lint $(GOLANGCI_LINT_VERSION) required (CI's pin), found $${v:-none found} on PATH" >&2; \
 		exit 1; \
 	fi
-	golangci-lint run ./...
+	golangci-lint run $(GO_PACKAGES)
 
 # check-go and check-ts are what CI's path-filtered jobs run, so a ui/web-only
 # change never pays for the Go suite and vice versa. check runs both, and is
