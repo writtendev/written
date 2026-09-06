@@ -73,6 +73,32 @@ and performance characteristics as the official reference client.
    files or local config databases; all state resides in git refs managed by
    Writ.
 
+## The web surface is local, and signing stays with the operator
+
+`written web` — the local web interface named above under *What Written
+is* — is a local surface for the person at the machine, not a hosted
+service: it binds to localhost only, and its bind address is not
+configurable — no flag, environment variable, or config file changes what
+interface it listens on. Through it, the browser reaches the same engine
+the TUI does — opening an issue, commenting, editing, changing status are
+signed, append-only entries attributed to whoever performed them, and the
+web server writes them exactly as the TUI would.
+
+Approving is where this stops. An approval's entire value is that it is
+evidence a specific human approved something, checkable offline by someone
+who does not trust the machine it came from — and that property only
+holds while producing one requires a deliberate act by a human at the key,
+for that specific approval, with the confirmation itself coming from
+whatever holds the key and unforgeable by the web server process — a
+confirmation dialog the server renders and honors on its own is not that,
+however it's worded. So `written web` never holds unattended
+signing authority: no code path may let it produce a valid approval on its
+own, without a human acting at the key in the moment. It may hand back the
+command for the operator to run in their own terminal, or route the
+request through a confirming agent — `ssh-agent -c`, a hardware key touch
+— since that still requires the human to be present at the key; what it
+may never do is complete an approval by itself, unattended.
+
 ## Performance and user experience principles
 
 - **Instantaneous navigation:** Switching views, filtering lists, folding diff

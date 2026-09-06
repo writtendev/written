@@ -17,6 +17,7 @@ profile.cov
 
 # Dependency directories
 # vendor/
+node_modules/
 
 # Go workspace file
 go.work
@@ -40,3 +41,6 @@ dist/
 
 # Scratch & temporary files
 tmp/
+.agents/skills/
+.claude/worktrees/
+.claude/settings.local.json

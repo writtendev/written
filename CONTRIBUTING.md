@@ -56,11 +56,33 @@ enforces this on every commit.
 
 ## Build and test
 
-One toolchain, one command:
+Two toolchains — Go at the repository root, and an npm workspace (`ui/`,
+`web/`) for the TypeScript half — one command to check both:
 
 ```bash
-go build ./...
-go test ./...
+make check
 ```
 
-CI runs these tests plus `golangci-lint` and `go test -race` on every PR.
+Run the halves separately when you only touched one: `make check-go` (test,
+race, lint) or `make check-ts` (typecheck across the `ui`/`web` workspaces,
+after `npm install`). `make build` and `make test` remain for a plain Go
+build/test loop.
+
+`check-go`'s lint step requires [golangci-lint](https://golangci-lint.run)
+v1.64.8 on `PATH` — the exact version CI pins (see README's Prerequisites)
+— `make` does not install it for you.
+
+CI runs `make check-go` on Go changes, `make check-ts` on `ui`/`web`
+changes, and a release `build` job that always runs both — see `AGENTS.md`'s
+`## Dispatch` section for the review invariant this depends on (Go and
+TypeScript must stay independently testable).
+
+## Tagging
+
+Two independently versioned things live in this repo, tagged separately:
+
+- `vX.Y.Z` — the Go binary (`written`).
+- `ui/vX.Y.Z` — the `ui` package (`@writtendev/ui`).
+
+This mirrors how Go itself tags submodules, so a `<module-path-prefix>/vX.Y.Z`
+tag reads as familiar rather than repo-specific cleverness.
