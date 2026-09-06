@@ -113,15 +113,19 @@ ticket to `Todo` is the only signal that it is available to work.
 What a reviewer of a change to this repo is adversarial about. A diff that
 breaks one of these is a major finding, not a nit.
 
-- **The self-hosted web server has no write authority.** Every HTTP route
-  `written web` exposes is read-only, or at most hands back a command for
-  the user to run themselves (git remains the only way state changes). A
-  route that accepts a mutation — a comment, a merge, a ref update, a
-  config write — reachable over HTTP is a finding regardless of auth.
-- **Signing is local, never server-side.** No code path lets the web
-  server hold, load, derive, or make a network call to reach a signing
-  key. A signing key or credential anywhere in `internal/app`'s HTTP
-  wiring, or in `web/`, is a finding even if it is never exercised.
+- **`written web` binds to localhost only.** It is a local surface for
+  the person at the machine, not a hosted service (see `VISION.md`'s
+  local-only web surface statement). Binding to any interface other than
+  localhost, or making the bind address configurable to one, is a
+  finding.
+- **The web server never holds signing authority.** It may create, edit,
+  and read any op the engine supports — ordinary mutations reachable over
+  HTTP are the intended design, not a violation — but no code path may
+  let it hold, load, derive, or reach a signing key (see `VISION.md`'s
+  local-signing statement). The approve path hands the operator the
+  command to run in their own terminal — `written approve <id>` — rather
+  than signing for them. An approval that completes entirely inside the
+  server process is a finding, however convenient.
 - **One binary, no runtime Node.** The web client is a static bundle
   produced by `vite build` at compile time and embedded into the Go
   binary; `written` never shells out to `node`, `npm`, or a bundler after
