@@ -88,7 +88,10 @@ Approving is where this stops. An approval's entire value is that it is
 evidence a specific human approved something, checkable offline by someone
 who does not trust the machine it came from — and that property only
 holds while producing one requires a deliberate act by a human at the key,
-for that specific approval. So `written web` never holds unattended
+for that specific approval, with the confirmation itself coming from
+whatever holds the key and unforgeable by the web server process — a
+confirmation dialog the server renders and honors on its own is not that,
+however it's worded. So `written web` never holds unattended
 signing authority: no code path may let it produce a valid approval on its
 own, without a human acting at the key in the moment. It may hand back the
 command for the operator to run in their own terminal, or route the

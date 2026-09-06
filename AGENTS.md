@@ -91,18 +91,22 @@ guess.
 
 - **Linear team key**: `WRTN` (ticket ids are `WRTN-<n>`).
 - **Check command**: `make check` — runs the Go suite (`test`, `race`,
-  `lint`) and the TypeScript gate (`ui`, `web` typecheck, plus a
-  lockfile-sync check equivalent to `npm ci`) and must pass locally before
-  any push, by an implementer, a fixer, or a human. CI runs the same
-  Makefile targets rather than enumerating its own list: the path-filtered
-  `go` job runs `make check-go`, the path-filtered `ts` job runs
-  `make check-ts`, and the always-on `build` job runs `make build` and
-  `make build-ts` (see `.github/workflows/ci.yml`). The property this
-  guarantees is narrower than "every command a CI job runs is a Makefile
-  target" and more useful: **a tree that passes `make check` locally will
-  pass CI.** Two things in `ci.yml` sit outside a Makefile target on
-  purpose, and neither can produce the drift this guarantees against —
-  see the pipeline-integrity invariant below for why.
+  `lint`) and the TypeScript gate (`ui`, `web` typecheck, a lockfile-sync
+  check equivalent to `npm ci`, and — via `check-ts`'s dependency on
+  `build-ts` — the `vite build` that produces `web`'s embedded bundle) and
+  must pass locally before any push, by an implementer, a fixer, or a
+  human. CI runs the same Makefile targets rather than enumerating its own
+  list: the path-filtered `go` job runs `make check-go`, the path-filtered
+  `ts` job runs `make check-ts` (which already covers `build-ts`), and the
+  always-on `build` job runs `make build` and `make build-ts` again —
+  redundant with `check-ts` when a change touches `ui`/`web`, but the only
+  place that still exercises `build-ts` when a change is Go-only and the
+  `ts` job is path-filtered out (see `.github/workflows/ci.yml`). The
+  property this guarantees is narrower than "every command a CI job runs
+  is a Makefile target" and more useful: **a tree that passes `make check`
+  locally will pass CI.** Two things in `ci.yml` sit outside a Makefile
+  target on purpose, and neither can produce the drift this guarantees
+  against — see the pipeline-integrity invariant below for why.
 - **Base branch**: `main`.
 - **Worktrees**: `.claude/worktrees/` — one worktree per ticket, named for it.
 - **Run manifest**: `.claude/worktrees/dispatch-manifest.md`.
@@ -128,13 +132,17 @@ breaks one of these is a major finding, not a nit.
   create, edit, and read any op the engine supports — ordinary mutations
   reachable over HTTP are the intended design, not a violation — but no
   code path may let it produce a valid approval without a human acting at
-  the key for that specific approval (see `VISION.md`'s local-signing
-  statement). The approve path hands the operator the command to run in
-  their own terminal — `written approve <id>` — rather than signing for
-  them; routing through a confirming agent (`ssh-agent -c`, a hardware key
-  touch) is equally fine, since that still stops on the human's presence
-  at the key. An approval that completes entirely inside the server
-  process, with no human act at the key in the moment, is a finding,
+  the key for that specific approval — the confirmation itself must be
+  issued by whatever holds the key, and unforgeable by the server process,
+  so a "Confirm approval" dialog the server renders and honors on its own
+  does not qualify no matter what it displays (see `VISION.md`'s
+  local-signing statement). The approve path hands the operator the
+  command to run in their own terminal — `written approve <id>` — rather
+  than signing for them; routing through a confirming agent
+  (`ssh-agent -c`, a hardware key touch) is equally fine, since that still
+  stops on the human's presence at the key. An approval that completes
+  entirely inside the server process, with no human act at the key in the
+  moment, is a finding,
   however convenient.
 - **One binary, no runtime Node.** The web client is a static bundle
   produced by `vite build` at compile time and embedded into the Go
