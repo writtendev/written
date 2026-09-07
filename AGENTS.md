@@ -121,13 +121,18 @@ guess.
   `@source` glob to zero classes rather than an error — a typo'd path still
   builds clean, so that specific mistake has no gate yet.
   `ui/scripts/check-tokens.mjs` runs last, right after `build:harness`, and
-  cross-checks `ui/src/tokens.css` against that fresh build's stylesheet in
-  both directions — every token `tokens.css` declares must reach the built
-  `:root, :host` block, and (the harder direction) every name the build
-  emits in a reset namespace (`--color-*`, `--text-*`, `--radius-*`) must
-  trace back to a declaration `tokens.css`'s own parser found — so the
-  specimen page (`ui/dev/Specimen.tsx`, `WRTN-38`) and `tokens.css` cannot
-  silently drift apart. It hardcodes no token names of its own. All of this
+  cross-checks `ui/src/tokens.css` against that fresh build's stylesheet,
+  plus itself, in three directions — every token `tokens.css` declares
+  must reach the built `:root, :host` block; every name the build emits in
+  a reset namespace (`--color-*`, `--text-*`, `--radius-*`) must trace
+  back to a declaration `tokens.css`'s own parser found, catching a design
+  value that reaches the cascade from outside `tokens.css`; and (needing
+  no build at all) a loose namespace-independent scan of `tokens.css`'s
+  own source must agree with what its strict parser found, catching a
+  token shaped in a way the parser can't match in a namespace the reset
+  check can't reach (`--font-*`, `--spacing`) — so the specimen page
+  (`ui/dev/Specimen.tsx`, `WRTN-38`) and `tokens.css` cannot silently
+  drift apart. It hardcodes no token names of its own. All of this
   must pass locally before any push, by an implementer, a fixer, or a
   human. CI
   runs the same Makefile

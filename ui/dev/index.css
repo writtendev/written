@@ -5,3 +5,22 @@
    automatic source detection to `dev/`. `src/` is what ships and what
    the dev harness previews, so it must be added explicitly. */
 @source '../src';
+
+/* tokens.css is "structure only, no dark mode" (WRTN-36): one light
+   palette, no `prefers-color-scheme` handling anywhere in it. Without
+   this, a browser with a dark OS/browser preference paints its own
+   canvas — often black — behind anything neither `html`/`body` nor
+   Specimen's `<main>` explicitly covers: the margins outside `<main>`'s
+   `max-w-4xl`, and (were `<main>` not also `min-h-svh`) any leftover
+   viewport below short content. That would put the light palette a
+   reader is there to compare on a black ground instead of
+   `--color-ground`. `color-scheme: light` additionally stops the
+   browser from dark-styling its own form-control chrome against a page
+   that has no dark palette to match it with. */
+html,
+body {
+  min-height: 100%;
+  color-scheme: light;
+  background-color: var(--color-ground);
+  color: var(--color-ink);
+}

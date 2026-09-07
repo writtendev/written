@@ -184,14 +184,20 @@ compensating control for the one thing the gate below cannot check (see
 its own header comment).
 
 `ui/scripts/check-tokens.mjs` is the build-time backstop, run by
-`make check-ts` right after `build:harness` produces a fresh `ui/dist`. It
-cross-checks `tokens.css` against that built stylesheet in both
-directions: every name `tokens.css` declares must appear in the built
-`:root, :host` block, and — the harder direction — every name the build
-emits inside a `--color-*`/`--text-*`/`--radius-*` reset namespace must
-trace back to a declaration the shared parser actually found. It
-hardcodes no token names of its own; see the script's header for exactly
-what it does and does not catch.
+`make check-ts` right after `build:harness` produces a fresh `ui/dist`.
+Independent of that build, it first checks self-consistency: a loose,
+namespace-independent scan of `tokens.css`'s own source must agree
+exactly with what the shared parser found, which catches a token declared
+in a shape the parser can't match, in any namespace. It then cross-checks
+`tokens.css` against the built stylesheet in both directions: every name
+`tokens.css` declares must appear in the built `:root, :host` block, and
+— the harder direction — every name the build emits inside a
+`--color-*`/`--text-*`/`--radius-*` reset namespace must trace back to a
+declaration the shared parser actually found, which is what catches a
+design value reaching the built stylesheet from outside `tokens.css`
+entirely. Neither direction subsumes the other. It hardcodes no token
+names of its own; see the script's header for exactly what it does and
+does not catch.
 
 ## Development
 

@@ -18,9 +18,56 @@
 // component file to export nothing but its component. A file that also
 // exported these parsing helpers would trip that rule.
 
-/** Strips CSS block comments, so declaration matching never sees prose. */
+/**
+ * Strips CSS block comments, so declaration matching never sees prose.
+ *
+ * String-aware: a quoted value (e.g. a quoted font-family list) can
+ * legally contain a comment-opener-looking slash-star sequence without
+ * actually opening a comment — a property like
+ * `--font-display: 'Foo` + slash-star + `Bar', serif;` is one real
+ * declaration, not a comment that swallows everything up to the next
+ * literal star-slash. A naive block-comment regex doesn't know that and
+ * deletes every declaration in between, so this walks the source a
+ * character at a time, tracking whether it is inside a `'`/`"`-quoted
+ * string, and only treats a slash-star as a comment opener outside one.
+ * Backslash-escapes inside a string (an escaped quote) are copied through
+ * without ending the string early, matching CSS's own escaping rule.
+ *
+ * What this does NOT catch: a token name itself using a backslash escape
+ * to include a character outside DECLARATION's `[a-z0-9*-]` class (e.g.
+ * `--color-my\ token: …`, a legal escaped space) is invisible to both the
+ * loose scan and parseTokenNames alike — neither parses CSS escapes in a
+ * property name, so the two still agree (on not finding it) rather than
+ * disagreeing. See check-tokens.mjs's own "what this does NOT catch".
+ */
 export function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '')
+  let result = ''
+  let quote: string | null = null
+  for (let i = 0; i < source.length; i++) {
+    const ch = source[i]
+    if (quote) {
+      result += ch
+      if (ch === '\\' && i + 1 < source.length) {
+        result += source[i + 1]
+        i += 1
+      } else if (ch === quote) {
+        quote = null
+      }
+      continue
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch
+      result += ch
+      continue
+    }
+    if (ch === '/' && source[i + 1] === '*') {
+      const end = source.indexOf('*/', i + 2)
+      i = end === -1 ? source.length : end + 1
+      continue
+    }
+    result += ch
+  }
+  return result
 }
 
 // Matches a custom-property declaration at the start of a line: `--name:`.
