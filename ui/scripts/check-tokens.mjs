@@ -87,7 +87,20 @@ if (!existsSync(distAssetsDir)) {
       errors.push(`no ":root, :host" block found in the built stylesheet (${cssFiles.join(', ')})`)
     } else {
       const rootBlock = rootBlockMatch[1]
-      const emittedNames = new Set([...rootBlock.matchAll(/(--[a-z0-9-]+)\s*:/gi)].map((m) => m[1]))
+      // Deliberately broader than DECLARATION in ../dev/tokens.ts (which
+      // this check exists to backstop): any run of characters after `--`
+      // up to its colon is accepted as a name, with no restriction on the
+      // character class beyond the punctuation that ends a declaration or
+      // a `var(--other-name)` reference — `:`/`;`/`,`/`(`/`)`/`{`/`}` and
+      // whitespace — so a name shaped in a way the parser can't match
+      // (e.g. an underscore) is still visible here rather than silently
+      // invisible to both. The built CSS is minified with no separating
+      // whitespace, so without excluding that punctuation a `var(--x)`
+      // reference earlier in the same declaration gets swallowed into the
+      // next property's "name" instead of stopping at it.
+      const emittedNames = new Set(
+        [...rootBlock.matchAll(/(--[^\s:;,(){}]+)\s*:/g)].map((m) => m[1]),
+      )
 
       // --- Check 3: every declared name is emitted -----------------------
 
