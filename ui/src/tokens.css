@@ -48,7 +48,11 @@
    * component is mechanically stopped from reaching for an untokened
    * color. Static utilities that aren't theme lookups — `bg-transparent`,
    * `text-current`, `border-current`, `rounded-full`, `rounded-none`, and
-   * preflight's `border: 0 solid` (currentColor) — are unaffected.
+   * preflight's `border: 0 solid` (currentColor) — are unaffected. This
+   * reset also deletes any `@theme` color a consumer declares *before*
+   * this file's `@import` — `@theme` resets apply in source order, so a
+   * consumer must `@import` this file before declaring its own `@theme`
+   * colors, or theirs vanish with a clean, silent build (see `ui/README.md`).
    *
    * `--text-*: initial` and `--radius-*: initial` because both namespaces
    * are redeclared in full below; leaving Tailwind's defaults in place
@@ -77,7 +81,7 @@
      on filled surfaces (accent, danger). */
   --color-ink: oklch(0.23 0.01 60);
   --color-ink-muted: oklch(0.46 0.01 60);
-  --color-ink-subtle: oklch(0.55 0.008 60);
+  --color-ink-subtle: oklch(0.525 0.008 60);
   --color-ink-inverse: oklch(0.98 0.004 85);
 
   /* Color — rules and edges. Borders and dividers, not text. */
@@ -93,8 +97,24 @@
 
   /* Color — semantic status. Green is reserved for success and is never
      the brand color; red is reserved for failure and is never the accent. */
-  --color-success: oklch(0.52 0.11 150);
+  --color-success: oklch(0.515 0.11 150);
   --color-danger: oklch(0.55 0.19 29);
+
+  /* Text-on-surface contrast (WCAG AA, 4.5:1) audited against all three
+     surfaces above, not just `ground` — `ink-subtle` and `success` were
+     tuned (lightness only) to clear the worst case, `ground-sunken`:
+     https://github.com/writtendev/written/pull/4#discussion_r3947084044
+     |              | ground | ground-raised | ground-sunken |
+     |--------------|--------|----------------|----------------|
+     | ink          | 15.83  | 16.91          | 14.40          |
+     | ink-muted    |  6.68  |  7.14          |  6.08          |
+     | ink-subtle   |  5.06  |  5.40          |  4.60          |
+     | success      |  5.00  |  5.35          |  4.55          |
+     | danger       |  4.99  |  5.34          |  4.54          |
+     All pass 4.5:1 on every surface. accent/accent-hover are used on
+     filled surfaces (with --color-ink-inverse), not as text-on-ground, so
+     they are out of scope for this table — see acceptance criterion 1
+     above for their own (color-distinction, not contrast) requirement. */
 
   /* Type — families. System stacks only; no webfont, no @font-face, no
      network dependency in a file that ships as source to consumers.
@@ -131,7 +151,11 @@
   --spacing: 0.25rem;
 
   /* Radii. `rounded-full` and `rounded-none` remain available as built-ins
-     after the --radius-* reset above. */
+     after the --radius-* reset above — but bare `rounded` does not: unlike
+     those two, it is a theme-backed utility
+     (`.rounded { border-radius: var(--radius) }` in Tailwind's defaults),
+     not a static one, so the reset deletes it too. Use `rounded-sm` /
+     `rounded-md` / `rounded-lg` below instead. */
   --radius-sm: 0.1875rem;
   --radius-md: 0.3125rem;
   --radius-lg: 0.5rem;

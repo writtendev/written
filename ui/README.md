@@ -43,7 +43,12 @@ for the full list this package is held to.
   pointing a consumer's Tailwind build at this package with `@source` is
   not enough on its own — a consumer must also `@import` `tokens.css`
   into its own Tailwind entry stylesheet (`dev/index.css` does exactly
-  this for the harness).
+  this for the harness). That `@import` must come **before** any `@theme`
+  block the consumer declares of its own: `tokens.css` resets `--color-*`
+  to `initial` before redeclaring it, and `@theme` resets apply in source
+  order, so a consumer `@theme` color declared _above_ the `@import` gets
+  deleted by it — the utility silently doesn't compile, with a green
+  build and no error.
 
 ## Development
 
