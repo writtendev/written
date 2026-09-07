@@ -142,10 +142,10 @@ current screen name) and a fully labeled hint bar both belong:
 │                                                    Inbox is empty.                                                   │
 │                                        Nothing assigned to you, nothing unread.                                      │
 │                                                                                                                      │
-│                                   Press r for reviews, i for issues, or : to search.                                 │
+│                                Press g r for reviews, g I for issues, or : to search.                                │
 │                                                                                                                      │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-  ?: help  r: reviews  i: issues  :: palette
+  ?: help  g r: reviews  g I: issues  :: palette
 ```
 
 ## Persistent chrome
@@ -263,10 +263,20 @@ the entire stack with a single frame at Inbox, Review list, or Issue
 list, rather than stacking the destination on top of wherever you
 were. This keeps the jump case bounded — repeated jumps can't grow the
 stack, unlike a push would — and gives `esc` a well-defined answer
-right after one: there is nothing below the new root to pop, the same
-as `esc` at Inbox on a fresh launch. Escape *from the palette itself*,
-without picking anything, is the one exception: that returns to
-wherever you opened it, unchanged, because no jump happened.
+right after one.
+
+**Decision: `esc` at a stack root is a no-op.** Whichever screen is
+currently the root — Inbox on a fresh launch, or a list just jumped
+to — has nothing beneath it to pop to, and `esc` there does nothing
+rather than falling back to Inbox or any other screen. This has to
+hold uniformly, not just for Inbox: a jump's entire purpose is to make
+its destination the new root, full stop, so letting `esc` at a
+jumped-to Review list or Issue list quietly return to Inbox would
+smuggle a push relationship back into a model that deliberately has
+none between the three top-level screens. Escape *from the palette
+itself*, without picking anything, is the one exception to any of
+this: that returns to wherever you opened it, unchanged, because no
+jump happened.
 
 Searching the palette for a specific review or issue and opening it is
 a **different** palette action from a quick-switch, and it is not a
@@ -307,33 +317,49 @@ screen at a time, which is what narrow terminals need.
                                    │
                                    └─ esc ──> back to Inbox
 
-  Review list and Issue list are not reached by activating an inbox
-  row — they're peer, directly-reachable screens (`r` / `i`, exact
-  bindings are `WRTN-5`'s call, or the palette), pushed on top of
-  whatever's current. Once there, activating a row pushes the same
-  detail screen the inbox does, one level deeper:
+  Review list and Issue list are never reached by activating an inbox
+  row, and never pushed on top of whatever's current — pushing onto
+  the existing stack is only ever what activating a row does. They
+  are reached exactly one way: the other two jump destinations (`g r`
+  for Review list, `g I` for Issue list, exact bindings are `WRTN-5`'s
+  call, or the palette's quick-switch). A jump resets the stack to a
+  single frame at its destination (see the decision above), so a
+  jumped-to list is itself the stack's root — the same role Inbox
+  plays at launch, not a frame sitting on top of Inbox. From that
+  root, activating a row pushes the same detail screen the inbox
+  case above does, one level deeper, and a review detail pushes the
+  diff viewer one level deeper still:
 
-    Review list ── activate a row ──> Review detail ──> Diff viewer
-    Issue list  ── activate a row ──> Issue detail
+    Review list (root) ── activate a row ──> Review detail ──> Diff viewer
+    Issue list  (root) ── activate a row ──> Issue detail
 
-  esc from any pushed screen pops exactly one level: Diff viewer ->
-  Review detail -> Inbox when reached from the inbox, or Diff viewer
-  -> Review detail -> Review list -> Inbox when reached via the list
-  (same shape on the issue side either way). The root model's stack
-  has exactly one owner, and its top frame is always "which screen is
-  current."
+  esc from a pushed screen pops exactly one level — Diff viewer ->
+  Review detail -> Review list, or Issue detail -> Issue list — the
+  same one-level-at-a-time pop the Inbox case above shows, bottoming
+  out at whichever screen is currently the root. It never pops past
+  that root to Inbox or to anything else: reaching Review list or
+  Issue list by a jump made it a root in its own right, with nothing
+  beneath it on the stack, because the jump discarded whatever was
+  there before. The root model's stack has exactly one owner, and its
+  top frame is always "which screen is current."
 
-  The palette's quick-switch commands, g i, g r, and g I are jumps,
-  not pushes: each resets the stack to a single frame at the
+  `esc` at whichever screen is currently the root — Inbox at launch,
+  or a list just jumped to — is a no-op: there is nothing beneath a
+  root to pop to (see the `esc`-at-a-root decision above), and that
+  holds the same way for all three top-level screens.
+
+  The palette's quick-switch commands, `g i`, `g r`, and `g I`, are
+  jumps, not pushes: each resets the stack to a single frame at the
   destination — Inbox, Review list, or Issue list, and nothing else —
   discarding whatever was on the stack before. A jump can't grow the
-  stack, and esc right after one has nothing below it to pop (see the
-  navigation decision above). Escape from the palette itself, without
-  picking anything, returns to wherever you opened it, unchanged —
-  that's not a jump. Searching the palette for a specific review or
-  issue and opening it is neither of those: it pushes the result's
-  detail screen onto the current stack like any other activation, so
-  esc still pops back to wherever the search was opened from.
+  stack, and `esc` right after one is the no-op above, since there is
+  nothing below the new root to pop. Escape from the palette itself,
+  without picking anything, returns to wherever you opened it,
+  unchanged — that's not a jump. Searching the palette for a specific
+  review or issue and opening it is neither of those: it pushes the
+  result's detail screen onto the current stack like any other
+  activation, so `esc` still pops back to wherever the search was
+  opened from.
 ```
 
 ## Review detail and issue detail
@@ -546,11 +572,11 @@ number writ cannot mint):
 ```
 
 The hint bar has no `esc` here on purpose: Inbox is the stack's root
-in this scene, so there's nothing below it to pop (`## Navigation
-model`) — a screen reached via a push, once it isn't the root, shows
-`esc` in its place. A screen reached via a jump is always the new
-root by definition (`## Navigation model`'s stack-reset rule) and
-never shows `esc` right after landing.
+in this scene, and `esc` at a root is a no-op (`## Navigation model`)
+— a screen reached via a push, once it isn't the root, shows `esc` in
+its place. A screen reached via a jump is always the new root by
+definition (`## Navigation model`'s stack-reset rule) and never shows
+`esc` right after landing.
 
 ## Unhappy states at this level
 
@@ -572,16 +598,33 @@ screen (the per-screen unhappy states are `WRTN-19`, `WRTN-20`, and
   or a malformed value that `DerivePersonID` refuses to guess at
   (`engine/identity`). Every `Assignee` filter the inbox runs
   (`## Home is the inbox`, sources 1 and 2) would compare against that
-  empty id and return nothing. `Author` (source 3) is not itself
-  broken by a `PersonIDErr` — it compares against `Identity.Author.Email`,
-  derived independently and earlier in `Load` from `user.email` — but
-  the shell does not try to run a partial inbox off of it: a broken
-  `PersonID` also means every write this identity would make (assign,
-  approve, comment as) is broken the same way, so the same "identity
-  not configured" screen applies uniformly rather than showing an
-  inbox that reads fine and writes nowhere. A result indistinguishable
-  from a caught-up identity with nothing outstanding is the failure
-  mode either way, unless the shell checks first — so Written checks
+  empty id and return nothing. `Author` (source 3) is **not always**
+  broken by a `PersonIDErr` the same way, and that "always" matters
+  past this section — verified at the source
+  (`engine/identity/identity.go`): `loadFailed` (lines 98-100) is what
+  `Load` returns on its three earliest failures — missing or invalid
+  `writ.writerId`, missing `user.name`, missing `user.email` — and it
+  hands back `Identity{PersonIDErr: err}` with a **zero-valued
+  `Author`**, so for those three reasons `PersonIDErr != nil` coincides
+  with `Author.Email == ""` too. Only past that point, once `user.email`
+  has already resolved, does `DerivePersonID` run and fail
+  independently of it — a good `user.email` with a malformed or
+  unset `writ.personId` is the one case this section is actually
+  about, where `PersonIDErr != nil` and `Author.Email` is populated and
+  correct. **A caller must check `Author.Email != ""` directly before
+  trusting it, not infer that from `PersonIDErr`'s presence or
+  absence** — an authored-by-me query run anywhere outside this
+  inbox's gate (WRTN-19's review list, say) that skips this check and
+  runs `Author: [""]` would read a broken identity as "you authored
+  nothing," not as "identity unusable." Here in the inbox's own gate
+  the distinction is moot regardless of which of the two shapes
+  applies: a broken `PersonID` also means every write this identity
+  would make (assign, approve, comment as) is broken the same way, so
+  the same "identity not configured" screen applies uniformly rather
+  than showing an inbox that reads fine and writes nowhere. A result
+  indistinguishable from a caught-up identity with nothing outstanding
+  is the failure mode either way, unless the shell checks first — so
+  Written checks
   `PersonIDErr` before running any inbox query and, if it's set, shows
   an explicit "identity not configured" screen naming what's missing
   and the git config to set, instead of the empty-inbox copy above.
