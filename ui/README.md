@@ -72,21 +72,24 @@ both are needed and neither substitutes for the other:
    it — the utility silently doesn't compile, with a green build and no
    error.
 2. **`@source '<path to this package's src>'`** — does **not** go through
-   the `exports` map. It is a filesystem glob that tells the consumer's
-   Tailwind build to scan this package's source for class names. A bare
-   `@source '@writtendev/ui'` or `@source '@writtendev/ui/src'` does
-   **not** work in Tailwind 4 — it builds clean and generates zero
-   classes, silently. Use a relative path into `node_modules`, as below.
+   the `exports` map. It is a filesystem path, not a package specifier:
+   it tells the consumer's Tailwind build to scan this package's source
+   for class names by walking the filesystem, not by resolving `exports`.
+   A bare `@source '@writtendev/ui'` or `@source '@writtendev/ui/src'`
+   does **not** work in Tailwind 4 — it builds clean and generates zero
+   classes, silently. An in-repo consumer should point at the workspace
+   directory directly rather than through `node_modules`, as below.
 
-Same two lines for both consumers, differing only in how deep
-`node_modules` is from the CSS file (npm hoists the workspace symlink to
-the repo root):
+The two consumers' `@source` lines differ in more than depth: the
+in-repo `web/` consumer points straight at the `ui/` workspace directory,
+while the outside consumer points into its own `node_modules` (where
+`@writtendev/ui` is a real npm-installed directory, not a symlink):
 
 ```css
 /* web/, in this repo — path relative to the CSS file */
 @import 'tailwindcss';
 @import '@writtendev/ui/tokens.css';
-@source '../../node_modules/@writtendev/ui/src';
+@source '../../ui/src';
 ```
 
 ```css
