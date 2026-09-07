@@ -22,20 +22,33 @@
 //   3. Every name tokens.css declares appears in that block (forward
 //      direction: a token dropped from @theme static, e.g. moved to a
 //      plain :root block, is caught here).
-//   4. Reverse direction: for each `--X-*: initial` namespace reset in
-//      tokens.css, every emitted --X-* name in the built block is also
-//      one tokens.css declares. Because the resets delete Tailwind's own
-//      --color-*/--text-*/--radius-* defaults, anything emitted in those
-//      namespaces must have come from tokens.css — so this catches a
-//      token declared in a shape parseTokenNames fails to match, which
-//      check 3 cannot (it never learns the name exists in the first
-//      place).
+//   4. Self-consistency: a loose scan of tokens.css's own comment-stripped
+//      source — any run of non-punctuation, non-whitespace characters
+//      before a colon, in ANY namespace — must name exactly the same
+//      tokens as parseTokenNames (../dev/tokens.ts's strict [a-z0-9-]
+//      parser) does. A token declared in a shape the strict parser can't
+//      match (an underscore, a unicode letter, ...) shows up in the loose
+//      scan but not in parseTokenNames's output, so the disagreement is
+//      caught here even though check 3 never learns the name exists in
+//      the first place. This deliberately does not lean on the
+//      `--X-*: initial` namespace resets the way an earlier version of
+//      this check did: that only proved an emitted name traced back to
+//      tokens.css for the namespaces tokens.css happens to reset
+//      (--color-*/--text-*/--radius-*), so a shape-mismatched --font-* or
+//      --spacing token — --font-* is deliberately never reset (see
+//      tokens.css's own comment on why), and --spacing is a single bare
+//      property with no namespace to reset — was invisible to it. Scanning
+//      tokens.css's own source against its own parser catches every
+//      namespace alike, and needs no built stylesheet to do it.
 //
 // What this does NOT catch, stated plainly: a deleted token. Nothing here
 // knows a token ought to exist without a parallel list, which is exactly
 // what this ticket forbids the page (and this gate) from keeping. The
 // compensating control is the specimen page itself: it renders every
-// token that does exist, so a deletion is visible on sight.
+// token that does exist, so a deletion is visible on sight. Check 4 also
+// only proves the strict and loose scans agree on tokens.css's own
+// source — it does not (and check 3 does, forward-direction) confirm an
+// agreed-upon name actually reaches the built stylesheet.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -112,22 +125,35 @@ if (!existsSync(distAssetsDir)) {
         }
       }
 
-      // --- Check 4 (reverse): every emitted name in a reset namespace is
-      //     one tokens.css declares ------------------------------------
+      // --- Check 4 (self-consistency): a loose, namespace-independent scan
+      //     of tokens.css's own source agrees with parseTokenNames --------
 
       const declared = new Set(declaredNames)
-      const resetNamespaces = [
-        ...strippedTokens.matchAll(/^[ \t]*--([a-z0-9-]+)-\*\s*:\s*initial\s*;/gim),
-      ].map((m) => m[1])
 
-      for (const namespace of resetNamespaces) {
-        const prefix = `--${namespace}-`
-        for (const name of emittedNames) {
-          if (name.startsWith(prefix) && !declared.has(name)) {
-            errors.push(
-              `"${name}" is emitted in the built stylesheet's "--${namespace}-*" namespace but tokens.css's parser did not find a declaration for it`,
-            )
-          }
+      // Same loose pattern as emittedNames above, applied to tokens.css's
+      // own comment-stripped source instead of the built stylesheet, so
+      // this needs no build output and no namespace reset to work. The
+      // `-*` filter drops the namespace-reset declarations themselves
+      // (`--color-*: initial`), matching parseTokenNames's own convention
+      // of not treating those as token names.
+      const looseSourceNames = new Set(
+        [...strippedTokens.matchAll(/(--[^\s:;,(){}]+)\s*:/g)]
+          .map((m) => m[1])
+          .filter((name) => !name.endsWith('-*')),
+      )
+
+      for (const name of looseSourceNames) {
+        if (!declared.has(name)) {
+          errors.push(
+            `"${name}" is declared in tokens.css (loose scan) but tokens.css's parser (parseTokenNames) did not recognize it — likely a name shape outside its [a-z0-9-] character class`,
+          )
+        }
+      }
+      for (const name of declared) {
+        if (!looseSourceNames.has(name)) {
+          errors.push(
+            `"${name}" was parsed by parseTokenNames but the loose scan of tokens.css did not find it — parser/gate disagreement, investigate both`,
+          )
         }
       }
     }
