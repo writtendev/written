@@ -57,7 +57,7 @@ The terminal user interface built on Charm's Bubble Tea ecosystem.
 Project documentation, user quickstarts, ASCII screen wireframes, and UX specifications.
 
 #### `/ui`
-A shared TypeScript component package (`@writtendev/ui`), npm workspace. Typechecked but not built or published: `web` resolves it directly from `src/` through npm workspace linking, so there is no compiled `dist/` and no version to publish. Contents land in `WRTN-42`; this ticket only establishes the workspace shape.
+A shared TypeScript component package (`@writtendev/ui`), npm workspace. Typechecked but not built or published: `web` resolves it directly from `src/` through npm workspace linking, so there is no compiled `dist/` and no version to publish. `ui/src/` is what ships and what a consumer's Tailwind `@source` points at; `ui/dev/` is a local dev harness for previewing `ui/src/` in isolation and ships to nobody. `ui`'s `build:harness` script (`tsc -b && vite build`) runs as part of `make check-ts` to exercise the harness build, including its `@source '../src'` Tailwind wiring — that is a check, not a release artifact, so `ui`'s `buildless: true` keeps it out of `make build-ts`'s release path. It catches anything that breaks that build outright, but not a typo'd `@source` path on its own: Tailwind resolves an unmatched `@source` glob to zero classes rather than an error, so that specific mistake has no gate yet (see `AGENTS.md`'s `## Dispatch` section).
 
 #### `/web`
 The embedded browser client for `written web` (`@writtendev/web`), npm workspace, built with Vite. `vite build` produces a static bundle at compile time that the Go binary embeds; see decision 5 below and `## Dispatch`'s "one binary, no runtime Node" invariant in `AGENTS.md`.

@@ -57,20 +57,28 @@ enforces this on every commit.
 ## Build and test
 
 Two toolchains — Go at the repository root, and an npm workspace (`ui/`,
-`web/`) for the TypeScript half — one command to check both:
+`web/`) for the TypeScript half. Before your first `make check`:
+
+1. `npm ci` — installs the npm workspace's dependencies. `make check-ts`
+   (and `make build-ts`) guard for this and fail naming this exact command
+   if `node_modules` is missing or incomplete; they do not run it for you.
+2. [golangci-lint](https://golangci-lint.run) v1.64.8 on `PATH` — the exact
+   version CI pins (see README's Prerequisites). `check-go`'s lint step
+   asserts this version and does not install it for you either.
+
+Then one command checks both halves:
 
 ```bash
 make check
 ```
 
 Run the halves separately when you only touched one: `make check-go` (test,
-race, lint) or `make check-ts` (typecheck across the `ui`/`web` workspaces,
-after `npm install`). `make build` and `make test` remain for a plain Go
-build/test loop.
-
-`check-go`'s lint step requires [golangci-lint](https://golangci-lint.run)
-v1.64.8 on `PATH` — the exact version CI pins (see README's Prerequisites)
-— `make` does not install it for you.
+race, lint) or `make check-ts` (the `node_modules` guard above, a
+lockfile-drift check, typecheck across the `ui`/`web` workspaces,
+`eslint . --max-warnings 0` and `prettier --check` at the repo root
+covering `ui/` and `web/`, and `ui`'s dev-harness build). `make build` and
+`make test` remain for a plain Go build/test loop. Fix formatting with
+`npm run format` (root).
 
 CI runs `make check-go` on Go changes, `make check-ts` on `ui`/`web`
 changes, and a release `build` job that always runs both — see `AGENTS.md`'s

@@ -23,6 +23,7 @@ your local git repository with zero network latency.
 - [Architecture & Settled Decisions](ARCHITECTURE.md) — Internal layout, technical decisions, and component boundaries.
 - [Contributing Guide](CONTRIBUTING.md) — Development workflow, DCO requirements, and guidelines.
 - [Agent Brief](AGENTS.md) — Instructions for AI coding assistants and automation agents.
+- [`ui/` package](ui/README.md) — Shared TypeScript component package consumed by `web/`.
 
 ## Quickstart
 
@@ -30,7 +31,8 @@ your local git repository with zero network latency.
 
 - Go 1.25+
 - Git 2.40+
-- Node 22+ (only needed to work on `ui/` or `web/`)
+- Node 22+ — needed for `make check` and `make build-ts` regardless of what
+  changed, not only when working on `ui/` or `web/` directly.
 - [golangci-lint](https://golangci-lint.run) v1.64.8 (the exact version CI pins; required by `make check`'s lint step)
 
 ### Building from Source
@@ -38,6 +40,7 @@ your local git repository with zero network latency.
 ```bash
 git clone https://github.com/writtendev/written.git
 cd written
+npm ci   # required before make check / make build-ts
 make build
 ```
 
