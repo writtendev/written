@@ -55,4 +55,99 @@ export default tseslint.config(
       globals: globals.node,
     },
   },
+  {
+    // Enforces the two `ui/`-scoped review invariants in AGENTS.md that
+    // no other tool checks: no dynamically constructed class names (a
+    // Tailwind build that scans this package as source cannot see a
+    // class assembled at runtime), and no raw values (every visual value
+    // must trace to a token in tokens.css). Scoped to `ui/src/**` only —
+    // not `ui/dev/**`, which is a harness, and not `web/`.
+    //
+    // What this does NOT assert: that a class name is a *real* Tailwind
+    // utility. A typo'd `bg-acccent` is a literal string, passes this
+    // rule, and Tailwind drops it silently — the same documented gap as
+    // a typo'd `@source` (see ui/scripts/check-exports.mjs).
+    //
+    // Coverage, stated accurately rather than claimed as complete: the
+    // rules below catch template interpolation, `+` concatenation, and
+    // the `.concat()`/`.join('')`/`.replace()`/`.replaceAll()` method
+    // routes to a dynamically assembled class name. They do NOT catch
+    // every conceivable route — e.g. a class built via `Array.prototype
+    // .reduce`, `String.prototype.slice`/`padStart`/`padEnd`, computed
+    // property access into a dynamically-named object key, or a helper
+    // function defined outside this file that does the assembly for a
+    // caller here. `no-restricted-syntax` selectors are pattern matches,
+    // not data-flow analysis, so a sufficiently indirect route always
+    // remains open. What is here is the set of routes this PR's review
+    // actually demonstrated exit 0 undetected; widen further the same
+    // way if another one is demonstrated.
+    files: ['ui/src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'TemplateLiteral[expressions.length>0]',
+          message:
+            'No dynamically constructed class names: an interpolated template literal is invisible to a consumer Tailwind build scanning this package as source. Use a literal-string variant map instead.',
+        },
+        {
+          // Deliberately over-broad: this also forbids arithmetic, not
+          // just string concatenation, because both use the same `+`
+          // operator and this file is three presentational components
+          // with no arithmetic to protect. If a future component
+          // genuinely needs `+`, relaxing this selector is a deliberate
+          // edit, which is the right cost.
+          selector: "BinaryExpression[operator='+']",
+          message:
+            "No dynamically constructed class names: string concatenation ('bg-' + variant) is invisible to a consumer Tailwind build scanning this package as source. Use a literal-string variant map instead.",
+        },
+        {
+          // `.concat()` and `.replace()`/`.replaceAll()` are unconditionally
+          // forbidden: every call to them assembles or rewrites a string at
+          // runtime, and this file has no legitimate use for any of the
+          // three (unlike `.join()` below, nothing here calls them on
+          // purpose).
+          selector: 'CallExpression[callee.property.name=/^(concat|replace|replaceAll)$/]',
+          message:
+            "No dynamically constructed class names: '.concat()'/'.replace()'/'.replaceAll()' build a class name invisible to a consumer Tailwind build scanning this package as source. Use a literal-string variant map instead.",
+        },
+        {
+          // `.join('')` only — not `.join(' ')` or a bare `.join()`.
+          // `.join('')` fuses fragments into a single class exactly like
+          // `.concat()` does (`[prefix, variant].join('')`), which is the
+          // failure mode this rule exists to catch. `.join(' ')` is the
+          // sanctioned composition pattern `ui/src/cn.ts` itself uses to
+          // combine whole, already-literal class strings with a space —
+          // forbidding it would break the one legitimate joining path this
+          // package has. A non-literal (variable) separator argument is a
+          // gap this selector does not cover; see the block comment above.
+          selector: "CallExpression[callee.property.name='join'][arguments.0.value='']",
+          message:
+            'No dynamically constructed class names: an empty-separator \'.join("")\' fuses fragments into a class name invisible to a consumer Tailwind build scanning this package as source. Use a literal-string variant map instead.',
+        },
+        {
+          selector: 'Literal[value=/#[0-9a-fA-F]{3}/]',
+          message:
+            'No raw values: a hardcoded hex color references nothing in tokens.css. Add or use a --color-* token instead.',
+        },
+        {
+          // Deliberately general: this is Tailwind's arbitrary-value
+          // bracket syntax itself (`utility-[...]`), not any particular
+          // unit inside it — the previous version of this rule enumerated
+          // `px|rem|em` and so missed a non-numeric arbitrary value
+          // entirely (`text-[red]`, `bg-[rgb(0,0,0)]`) along with numeric
+          // ones outside that list (`w-[50%]`, `p-[2ch]`, `text-[14pt]`,
+          // `leading-[1.7]`).
+          selector: 'Literal[value=/-\\[[^\\]]+\\]/]',
+          message:
+            'No raw values: an arbitrary-value utility (e.g. bg-[#fff], w-[50%]) bypasses tokens.css. Add or use a token instead.',
+        },
+        {
+          selector: "JSXAttribute[name.name='style']",
+          message:
+            'No raw values: an inline style prop bypasses both tokens.css and the Tailwind scanner. Use token-backed utility classes instead.',
+        },
+      ],
+    },
+  },
 )

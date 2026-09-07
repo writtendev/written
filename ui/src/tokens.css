@@ -88,6 +88,24 @@
   --color-line: oklch(0.9 0.006 75);
   --color-line-strong: oklch(0.8 0.008 75);
 
+  /* Color — the boundary of an interactive control that has no filled
+     surface of its own to be read as a control by (e.g. Button's
+     `secondary` variant). Neither of the two tokens above clears WCAG
+     1.4.11's 3:1 minimum for a non-text UI boundary against
+     --color-ground: --color-line measures 1.26:1, --color-line-strong
+     1.75:1. This is a new token rather than a re-tuned --color-line-strong
+     because that token is already load-bearing elsewhere in the ramp —
+     changing its value would reach every consumer of it, not just the one
+     component that needed a stronger boundary. See WRTN-36's round-2
+     review (deferred this exact gap) and WRTN-39's round-1 review
+     (PR #7), which is what surfaced the need. Same hue/chroma family as
+     the two tokens above (oklch(_ 0.008 75)), lightness lowered until the
+     worst-case surface clears 3:1 with headroom: oklch(0.6 0.008 75)
+     measures 3.70:1 against --color-ground, 3.95:1 against
+     --color-ground-raised, 3.36:1 against --color-ground-sunken (a hover
+     fill) — all three clear 3:1. */
+  --color-line-interactive: oklch(0.6 0.008 75);
+
   /* Color — accent, the proofreader's pen. Oxblood, not blue. Kept
      legibly distinct from semantic danger red — see acceptance
      criterion 1 in WRTN-36. */

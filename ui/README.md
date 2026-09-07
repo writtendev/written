@@ -59,9 +59,10 @@ path, which is what the gate exists to prevent.
 
 ### Consuming this package
 
-The consumption story has two independent halves. Getting one without the
-other produces a page that looks broken in a different way each time, so
-both are needed and neither substitutes for the other:
+The consumption story has two independent halves for the visual result,
+plus one TypeScript-only requirement below them. Getting the first two
+without each other produces a page that looks broken in a different way
+each time, so both are needed and neither substitutes for the other:
 
 1. **`@import '@writtendev/ui/tokens.css'`** — goes through the `exports`
    map above. Pulls in the design system's CSS custom properties. This
@@ -102,6 +103,110 @@ while the outside consumer points into its own `node_modules` (where
 Failure modes, so a broken page is easy to place: `@import` alone gives
 tokens and no component classes; `@source` alone gives component classes
 referencing tokens that do not exist.
+
+**A TypeScript consumer also needs a JSX setting.** The root barrel
+(`@writtendev/ui`, resolving to `./src/index.ts`) re-exports `Button`,
+`Badge`, and `Text` straight from their `.tsx` source — there is no
+compiled `.js`/`.d.ts` output, per this package's "ships as source"
+framing above. `tsc` follows that barrel into the `.tsx` files while
+typechecking anything that imports from it, so a consumer's own
+`tsconfig.json` needs `"jsx": "react-jsx"` (or another `jsx` setting) even
+if nothing under the consumer's own source is itself JSX, plus `react`
+and `@types/react` resolvable (a peer dependency of this package — see
+`package.json`). Without it, an import of `@writtendev/ui` fails with
+`TS6142` ("emit an output that requires the '.tsx' extension"), on what
+otherwise looks like an unremarkable version bump. `web/tsconfig.json` in
+this repo carries this exact `jsx` setting for exactly this reason.
+
+## Components
+
+Three components, and for now only three: `Button`, `Badge`, one text/heading
+primitive (`Text`). Anything beyond these three is a review finding under
+the `ui/`-scoped invariant in the repo `AGENTS.md` — components get added
+later, as `written web` actually needs them, not against imagined
+requirements.
+
+**shadcn approach, with zero Radix dependencies.** We own the source of
+every component here, but none of the three has behaviour or ARIA wiring
+worth not writing — `Button` is a native `<button>`, `Badge` a `<span>`,
+`Text` renders a chosen intrinsic tag via `createElement`. Focus,
+`disabled`, keyboard activation, and `role` are already correct from the
+platform. The one real candidate, `@radix-ui/react-slot` for `asChild`
+(`<Button asChild><a .../></Button>`), is not taken: there is no caller
+yet, and adding it now would be exactly the "built against imagined
+requirements" this package's own framing rejects. It is the sanctioned
+addition the day a real caller needs a link styled as a button.
+
+**Variant handling: literal-string maps and a local `cn`, no `cva`.**
+Every variant is a plain `as const` object mapping a variant name to one
+whole literal class string:
+
+```ts
+const variantClasses = {
+  primary: 'bg-accent text-ink-inverse hover:bg-accent-hover',
+  secondary: 'border border-line-interactive bg-ground-raised text-ink hover:bg-ground-sunken',
+  ghost: 'bg-transparent text-ink hover:bg-ground-sunken',
+} as const
+```
+
+`secondary`'s border uses `--color-line-interactive`, not the plain
+`--color-line`/`--color-line-strong` rule tokens — the plain `line` token
+lands at 1.26:1 against `--color-ground`, short of WCAG 1.4.11's 3:1
+non-text minimum for a component that reads as a control by its border
+alone. See `button.tsx`'s comment on `secondary` and `tokens.css`'s
+comment on the token for the contrast figures.
+
+…selected by key and joined by `ui/src/cn.ts`, a three-line helper that
+filters and joins whole strings — it never assembles a class from
+fragments:
+
+```ts
+export function cn(...parts: Array<string | false | null | undefined>): string {
+  return parts.filter(Boolean).join(' ')
+}
+```
+
+`cn` is an internal helper, not exported from the package barrel — adding
+it to the public surface would be a one-way door on this package's API.
+No `cva`, `clsx`, or `tailwind-merge`: `keyof typeof variantClasses` gives
+the same type safety `VariantProps` would, with no import, and at three
+components with two axes each, `cva`'s compound variants and defaults are
+unused weight.
+
+**`className` is accepted, but does not reliably override.** Without
+`tailwind-merge`, a caller's `className` is appended after a component's
+own utilities but does not reliably win — CSS resolves by stylesheet
+order, not class-attribute order. Callers legitimately need layout
+utilities (`mt-4` never collides), but overriding a component's color or
+padding from outside is not supported: the sanctioned route to variation
+is a variant, composition, or children, per the no-caller-flags rule
+below.
+
+**No caller-situation flags.** No `isPaid`, `isAdmin`, `isLoggedIn`, or any
+prop that encodes the caller's circumstances — every prop on `Button`,
+`Badge`, and `Text` names a visual choice, never who is looking at it.
+Variation comes from composition, children, and render props.
+
+**The gate.** `eslint.config.js` scopes a `no-restricted-syntax` block to
+`ui/src/**/*.{ts,tsx}`, run by `eslint . --max-warnings 0` (→
+`make check-ts`), that fails the build on an interpolated template
+literal, `+` string concatenation, a `.concat()`/`.replace()`/
+`.replaceAll()` call, an empty-separator `.join('')`, a raw hex color, an
+arbitrary-value utility (any `utility-[...]` bracket, not only a
+pixel/rem/em one), or an inline `style` prop. It is a set of pattern
+matches, not data-flow analysis, so it does not cover every conceivable
+route to a dynamically assembled class name — a class built through
+`Array.prototype.reduce`, `String.prototype.slice`/`padStart`/`padEnd`, or
+computed property access into a dynamically-named object key would all
+still pass clean; widen the rule set the same way if one of those is ever
+demonstrated in this package. Moving the assembly into a helper function
+does not itself evade the gate — the `ui/src/**/*.{ts,tsx}` scope covers
+every file in the package, not only the caller, so a helper elsewhere in
+`ui/src` doing `'bg-' + variant` is caught exactly as if it were written
+inline. Nor does it assert
+that a class name is a _real_ Tailwind utility — a typo'd `bg-acccent` is
+a literal string and passes clean, the same documented gap as a typo'd
+`@source` above.
 
 ## Versioning
 
