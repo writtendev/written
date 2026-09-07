@@ -1,0 +1,138 @@
+/*
+ * tokens.css — the design system.
+ *
+ * Every layer above this file references these custom properties; nothing
+ * above it may hardcode a value (no hex codes, no pixel literals, no named
+ * colors inline in a component — see the repo AGENTS.md `## Dispatch`
+ * review invariants). A component that needs a value it doesn't have adds
+ * a token here; it does not inline one locally.
+ *
+ * Naming rule: a token name says what the value is *for*, never what the
+ * value *is*. `--color-ground`, not `--color-off-white`; `--color-danger`,
+ * not `--color-red`. That is what lets a dark theme later redefine values
+ * without renaming anything a component references. The three font keys
+ * (`--font-sans`/`--font-serif`/`--font-mono`) are the one apparent
+ * exception and are not one: they classify the typeface's *role*, which
+ * does not change under a theme swap, and must be spelled exactly that way
+ * to override Tailwind's own theme keys.
+ *
+ * `@theme static`, not plain `:root`, and not both:
+ *   - Plain `:root` custom properties are usable via `var(--color-ground)`
+ *     but generate no Tailwind utilities, forcing every consumer to write
+ *     `bg-[var(--color-ground)]` instead of `bg-ground`.
+ *   - `@theme` (verified against tailwindcss@4.3.3) emits every declared
+ *     variable into `:root, :host` *and* registers it as a utility source,
+ *     so `bg-ground` compiles to `background-color: var(--color-ground)`.
+ *     Raw `var()` access still works for anything that needs it. A
+ *     separate `:root` block alongside `@theme` would be a second copy of
+ *     every value — exactly the drift this file exists to prevent.
+ *   - `static` (not the default) because Tailwind otherwise tree-shakes
+ *     *unused* theme variables out of the emitted `:root` block, so a
+ *     token nothing references yet never reaches the browser. This design
+ *     system's whole point is being enumerable (see WRTN-38's specimen
+ *     page), so every token must be emitted whether or not anything
+ *     consumes it yet.
+ *   - Never `@theme inline`: `inline` substitutes the value at compile
+ *     time instead of emitting a `var()` reference, so redefining a token
+ *     later (a dark theme) would not propagate to components that already
+ *     compiled against it. That breaks the "dark theme is a later value
+ *     swap" acceptance criterion outright.
+ */
+
+@theme static {
+  /*
+   * Namespace resets — first, before anything else below redeclares them.
+   *
+   * `--color-*: initial` deletes Tailwind's ~280 default colors, so
+   * `bg-red-500` / `text-slate-900` / `bg-white` generate nothing and a
+   * component is mechanically stopped from reaching for an untokened
+   * color. Static utilities that aren't theme lookups — `bg-transparent`,
+   * `text-current`, `border-current`, `rounded-full`, `rounded-none`, and
+   * preflight's `border: 0 solid` (currentColor) — are unaffected.
+   *
+   * `--text-*: initial` and `--radius-*: initial` because both namespaces
+   * are redeclared in full below; leaving Tailwind's defaults in place
+   * would leave e.g. `text-7xl` or `rounded-4xl` live as untokened values.
+   *
+   * `--font-*` is deliberately NOT reset: preflight compiles
+   * `--default-font-family: var(--font-sans)`, so clearing that namespace
+   * would leave the document with no body font. Overriding the three font
+   * keys below achieves the same single-source result without that
+   * footgun.
+   *
+   * `--font-weight-*`, `--leading-*`, `--tracking-*`, `--shadow-*` are
+   * deliberately left at Tailwind's defaults — tightening them is a later
+   * decision, not a silent omission.
+   */
+  --color-*: initial;
+  --text-*: initial;
+  --radius-*: initial;
+
+  /* Color — surfaces. The page and its raised/sunken layers. */
+  --color-ground: oklch(0.977 0.006 85);
+  --color-ground-raised: oklch(1 0 0);
+  --color-ground-sunken: oklch(0.945 0.008 85);
+
+  /* Color — ink. Text, at decreasing emphasis, plus the inverse for use
+     on filled surfaces (accent, danger). */
+  --color-ink: oklch(0.23 0.01 60);
+  --color-ink-muted: oklch(0.46 0.01 60);
+  --color-ink-subtle: oklch(0.55 0.008 60);
+  --color-ink-inverse: oklch(0.98 0.004 85);
+
+  /* Color — rules and edges. Borders and dividers, not text. */
+  --color-line: oklch(0.9 0.006 75);
+  --color-line-strong: oklch(0.8 0.008 75);
+
+  /* Color — accent, the proofreader's pen. Oxblood, not blue. Kept
+     legibly distinct from semantic danger red — see acceptance
+     criterion 1 in WRTN-36. */
+  --color-accent: oklch(0.38 0.1 18);
+  --color-accent-hover: oklch(0.32 0.1 18);
+  --color-focus: oklch(0.45 0.12 18);
+
+  /* Color — semantic status. Green is reserved for success and is never
+     the brand color; red is reserved for failure and is never the accent. */
+  --color-success: oklch(0.52 0.11 150);
+  --color-danger: oklch(0.55 0.19 29);
+
+  /* Type — families. System stacks only; no webfont, no @font-face, no
+     network dependency in a file that ships as source to consumers.
+     Serif for display headings, sans for body, mono only where content
+     is actually code. */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-serif: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /* Type — size ramp. Seven steps, ending at 2.25rem: a review tool has no
+     display-hero type, and every extra step is another value to tune. */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.5;
+  --text-base: 1rem;
+  --text-base--line-height: 1.6;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.55;
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 1.4;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 1.3;
+  --text-3xl: 2.25rem;
+  --text-3xl--line-height: 1.2;
+
+  /* Spacing. In Tailwind v4 this single base *is* the spacing scale —
+     `p-4` compiles to `calc(var(--spacing) * 4)` — so this one line is
+     the source for the whole rhythm. A parallel named scale
+     (--spacing-xs, --spacing-md, ...) was considered and rejected: it
+     would give two ways to spell the same distance and duplicate what
+     Tailwind already derives. */
+  --spacing: 0.25rem;
+
+  /* Radii. `rounded-full` and `rounded-none` remain available as built-ins
+     after the --radius-* reset above. */
+  --radius-sm: 0.1875rem;
+  --radius-md: 0.3125rem;
+  --radius-lg: 0.5rem;
+}

@@ -37,6 +37,13 @@ for the full list this package is held to.
   confines Tailwind's automatic source detection to `dev/`, so
   `dev/index.css` adds `@source '../src'` to pull `src/` into the
   harness's own build.
+- **`src/tokens.css`** is the design system: a single `@theme static`
+  block of CSS custom properties for color, type, spacing, and radii.
+  `@source` only scans for class names and does not process CSS, so
+  pointing a consumer's Tailwind build at this package with `@source` is
+  not enough on its own — a consumer must also `@import` `tokens.css`
+  into its own Tailwind entry stylesheet (`dev/index.css` does exactly
+  this for the harness).
 
 ## Development
 
