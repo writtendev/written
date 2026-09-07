@@ -257,8 +257,14 @@ and publishes the package to npm with provenance on — see `ARCHITECTURE.md`'s
 `**Publishing (WRTN-44)**` paragraph for the full ceremony. Bumping the
 version and tagging it are two different, deliberately separated acts: the
 version bump above ships in the same PR as the change it describes; the tag,
-and the publish it triggers, is a maintainer decision made afterward, with
-registry credentials only a human holds.
+and the publish it triggers, is a maintainer decision made afterward — but
+the only thing actually enforcing that today is push (tag-create) rights on
+this repo, not a registry credential: the `NPM_TOKEN` the publish job uses
+lives in a repository secret, not with any one person, so anyone who can
+push a matching tag causes a publish. Push (tag-create) rights are
+therefore the effective gate until a GitHub tag ruleset or a protected
+Environment narrows who that is — see `CONTRIBUTING.md`'s `## Tagging` and
+`ARCHITECTURE.md`'s Publishing paragraph.
 
 ## Layout
 

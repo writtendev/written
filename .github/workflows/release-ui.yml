@@ -1,9 +1,13 @@
 name: release-ui
 
 # Fires on a `ui/vX.Y.Z` tag push — the only thing that publishes
-# @writtendev/ui to npm. Pushing this tag requires maintainer rights plus
-# registry credentials (see CONTRIBUTING.md's `## Tagging`); nothing here
-# creates the tag on its own.
+# @writtendev/ui to npm. Pushing this tag should be maintainer-only, but
+# the only thing actually enforcing that today is push (tag-create) rights
+# on this repo: the publish credential lives in the NPM_TOKEN repository
+# secret, not with any individual, so anyone with push rights can push a
+# matching tag and cause a publish (see CONTRIBUTING.md's `## Tagging`). A
+# GitHub tag ruleset or protected Environment would narrow that; neither
+# exists yet.
 on:
   push:
     tags: ['ui/v*']
