@@ -13,6 +13,7 @@
     "@writtendev/ui": "*"
   },
   "devDependencies": {
+    "@types/react": "^19.2.18",
     "typescript": "~6.0.2",
     "vite": "^8.2.2"
   }

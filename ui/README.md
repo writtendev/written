@@ -103,6 +103,77 @@ Failure modes, so a broken page is easy to place: `@import` alone gives
 tokens and no component classes; `@source` alone gives component classes
 referencing tokens that do not exist.
 
+## Components
+
+Three components, and for now only three: `Button`, `Badge`, one text/heading
+primitive (`Text`). Anything beyond these three is a review finding under
+the `ui/`-scoped invariant in the repo `AGENTS.md` — components get added
+later, as `written web` actually needs them, not against imagined
+requirements.
+
+**shadcn approach, with zero Radix dependencies.** We own the source of
+every component here, but none of the three has behaviour or ARIA wiring
+worth not writing — `Button` is a native `<button>`, `Badge` a `<span>`,
+`Text` renders a chosen intrinsic tag via `createElement`. Focus,
+`disabled`, keyboard activation, and `role` are already correct from the
+platform. The one real candidate, `@radix-ui/react-slot` for `asChild`
+(`<Button asChild><a .../></Button>`), is not taken: there is no caller
+yet, and adding it now would be exactly the "built against imagined
+requirements" this package's own framing rejects. It is the sanctioned
+addition the day a real caller needs a link styled as a button.
+
+**Variant handling: literal-string maps and a local `cn`, no `cva`.**
+Every variant is a plain `as const` object mapping a variant name to one
+whole literal class string:
+
+```ts
+const variantClasses = {
+  primary: 'bg-accent text-ink-inverse hover:bg-accent-hover',
+  secondary: 'border border-line bg-ground-raised text-ink hover:bg-ground-sunken',
+  ghost: 'bg-transparent text-ink hover:bg-ground-sunken',
+} as const
+```
+
+…selected by key and joined by `ui/src/cn.ts`, a three-line helper that
+filters and joins whole strings — it never assembles a class from
+fragments:
+
+```ts
+export function cn(...parts: Array<string | false | null | undefined>): string {
+  return parts.filter(Boolean).join(' ')
+}
+```
+
+`cn` is an internal helper, not exported from the package barrel — adding
+it to the public surface would be a one-way door on this package's API.
+No `cva`, `clsx`, or `tailwind-merge`: `keyof typeof variantClasses` gives
+the same type safety `VariantProps` would, with no import, and at three
+components with two axes each, `cva`'s compound variants and defaults are
+unused weight.
+
+**`className` is accepted, but does not reliably override.** Without
+`tailwind-merge`, a caller's `className` is appended after a component's
+own utilities but does not reliably win — CSS resolves by stylesheet
+order, not class-attribute order. Callers legitimately need layout
+utilities (`mt-4` never collides), but overriding a component's color or
+padding from outside is not supported: the sanctioned route to variation
+is a variant, composition, or children, per the no-caller-flags rule
+below.
+
+**No caller-situation flags.** No `isPaid`, `isAdmin`, `isLoggedIn`, or any
+prop that encodes the caller's circumstances — every prop on `Button`,
+`Badge`, and `Text` names a visual choice, never who is looking at it.
+Variation comes from composition, children, and render props.
+
+**The gate.** `eslint.config.js` scopes a `no-restricted-syntax` block to
+`ui/src/**/*.{ts,tsx}`, run by `eslint . --max-warnings 0` (→
+`make check-ts`), that fails the build on an interpolated template
+literal, string concatenation, a raw hex color, a `[13px]`-style
+arbitrary-value utility, or an inline `style` prop. It does not assert
+that a class name is a _real_ Tailwind utility — a typo'd `bg-acccent` is
+a literal string and passes clean, the same documented gap as a typo'd
+`@source` above.
+
 ## Versioning
 
 SemVer, starting at `0.1.0`. `0.0.0` is npm's "unset" placeholder and
