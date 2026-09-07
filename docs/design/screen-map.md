@@ -49,37 +49,77 @@ workflow"). The inbox is the set of objects that need this identity's
 attention, defined against three candidate sources, not a vibe:
 
 1. **Reviews assigned to me and not closed** — `Query.Reviews` with
-   `ReviewFilter{Assignee: [me], Status: [open statuses]}`. The
+   `ReviewFilter{Assignee: [me], Status: ["draft", "open"]}`. The
    `Assignee` field on `ReviewFilter` is real and queryable (`WRIT-97`
    is Done): this is not a heuristic over authorship or participation,
-   it is a direct filter.
+   it is a direct filter. `Status` carries no `"open"` convenience
+   value the way `IssueFilter.State` does below — `engine/projection`
+   matches it as a literal `IN` against the review status enum
+   (`"draft"`, `"open"`, `"closed"`, `"merged"`, `spec/review-ops.md`
+   §4 `set-status`), so "not closed" is spelled out here as the two
+   non-terminal values rather than a single keyword.
 2. **Issues assigned to me and not done** — `Query.Issues` with
-   `IssueFilter{Assignee: [me], State: [open states]}`, the same shape
-   as above.
+   `IssueFilter{Assignee: [me], State: ["backlog", "unstarted",
+   "started"]}`. `IssueFilter.State` does carry an `"open"`
+   convenience keyword, but `query.go:486` maps it only to workflow-
+   state types `unstarted`/`backlog` — it excludes `started`, so an
+   in-progress assigned issue (exactly what the Issue detail
+   wireframe below draws) would silently drop out of the inbox under
+   the convenience form. Naming the three non-terminal workflow-state
+   types directly closes that gap: each is matched case-insensitively
+   against `ws.f_type`, the same column the `"open"` keyword itself
+   compares against for two of the three, so this needs no separate
+   `Query.WorkflowStates` round-trip — the literal type strings are
+   themselves valid `State` values.
 3. **Objects I author or participate in with unread activity** —
    candidate object IDs come from three sources, not two: reviews and
-   issues I authored, reviews and issues I'm assigned to (already
-   covered by 1 and 2, but repeated here because they're also
-   candidates for *unread* activity, not just for being open), and
-   the subjects of comments I authored — `Query.Comments` with
-   `CommentFilter{Author: [me]}`, whose results carry `SubjectType`
-   and `SubjectID`, i.e. exactly the participation half of "author or
-   participate in" that authorship and assignment don't cover. All
-   three candidate sets are narrowed through the same
-   `ReadState.Unread(ctx, ids...)` pass, which returns the unread
-   subset of the ids passed in. Unread is not itself a filter on a
-   query; it is a second pass over ids the candidate queries already
-   produced. Without the comment-authored source, a review I only
-   commented on — never authored, never assigned — could accumulate
-   unread replies with no path to the inbox, which is exactly the
-   "unread discussion threads" case `VISION.md` names as one of the
-   inbox's three jobs; this source is what closes it.
+   issues I authored — `ReviewFilter{Author: [my email]}` /
+   `IssueFilter{Author: [my email]}` — reviews and issues I'm assigned
+   to (already covered by 1 and 2, but repeated here because they're
+   also candidates for *unread* activity, not just for being open),
+   and the subjects of comments I authored — `Query.Comments` with
+   `CommentFilter{Author: [my email]}`, whose results carry the
+   subject not at the top level but nested at
+   `CommentResult.Comment.Subject.{ObjectType,ObjectID}`
+   (`state.CommentSubject`; `SubjectType`/`SubjectID` are
+   `Draft`/`DraftFilter` fields, a different type) — i.e. exactly the
+   participation half of "author or participate in" that authorship
+   and assignment don't cover. All three candidate sets are narrowed
+   through the same `ReadState.Unread(ctx, ids...)` pass, which
+   returns the unread subset of the ids passed in. Unread is not
+   itself a filter on a query; it is a second pass over ids the
+   candidate queries already produced. Without the comment-authored
+   source, a review I only commented on — never authored, never
+   assigned — could accumulate unread replies with no path to the
+   inbox, which is exactly the "unread discussion threads" case
+   `VISION.md` names as one of the inbox's three jobs; this source is
+   what closes it, provided "my email" below is what actually gets
+   passed to `Author`.
 
-`me` resolves once per session via `identity.Load(ctx, repoDir)`
-(`engine/identity`), which is the person-id every `Assignee` filter
-above is compared against. That resolution can fail — see
-`## Unhappy states at this level` for what the shell does instead of
-running these three queries against an empty id.
+**"My email" is deliberately not the person-id.** `identity.Load(ctx,
+repoDir)` (`engine/identity`) returns one `Identity` carrying two
+distinct values, and sources 1–3 above depend on using the right one
+for each filter. `Identity.PersonID` is the scheme-prefixed person
+identifier (`email:alice@example.com`, or `writ.personId`'s value) —
+this is what every `Assignee` filter compares against, because
+assignee items in the engine are person-ids by construction
+(`spec/identifiers.md` §Person identifiers). `Identity.Author.Email`
+is the raw `user.email` writ signs every op's commit with, unrelated
+in format to `PersonID` — this is what every `Author` filter above
+compares against, because `Author` matches
+`objects.author_email`/`author_name`, columns populated straight from
+the authoring commit's identity (`materialize.go:41-42`), which
+carries no scheme prefix at all. Feeding `PersonID` into an `Author`
+filter — or `Author.Email` into `Assignee` — compiles, runs, and
+silently returns zero rows, because the two id spaces never intersect:
+a review commented on under this exact `user.email` and never
+authored or assigned is real and findable, but only via `Author: [me]`
+where `me` is `Identity.Author.Email`, not `Identity.PersonID`. An
+earlier draft of this document fed `PersonID` into the `Author`
+filters above; that is corrected here, and is why "my email" is
+written out rather than reusing "me" for both. That resolution can
+fail — see `## Unhappy states at this level` for what the shell does
+instead of running these queries against an empty id.
 
 **Unassigned objects do not appear in the inbox.** An open review or
 issue with no assignee is surfaced through the review list and issue
@@ -143,6 +183,30 @@ sync recorded), but that's now a true statement about local state as
 of the last sync, not a guess dressed as a fact about the remote —
 the engine has no immediate, local way to know more than that, and
 the indicator no longer claims to.
+
+**Which remote, and what happens with none.** `remote` is required —
+`Store.SyncStatus` returns an error on an empty string — so the shell
+has to resolve one before it can call this at all. It resolves the
+same way `writ sync`'s own CLI does (`cmd/writ/sync.go`): a remote
+named `origin` if one is configured, else the sole configured remote
+if there is exactly one, else none — multiple remotes with none named
+`origin` resolve to none here too, the same as zero remotes, since
+this bar has no prompt to ask which one the way the CLI's flag does.
+That resolution is ordinary local
+git plumbing (`git remote`), not an engine call, the same way
+repository discovery already reads git directly (`ARCHITECTURE.md`
+decision 3). When it resolves to none, the shell does not call
+`Store.SyncStatus` with a guessed or empty name — it renders an
+explicit `⟳ no remote` instead. This matters because the failure mode
+on the other side is silent and wrong in a specific way: `ComputeStatus`
+builds its "already on the remote" stop set by walking tips reachable
+from refs belonging to the named remote, and a remote with no matching
+refs (because it was never fetched, or the name doesn't exist at all)
+gives an empty stop set — every local op then counts as unsynced, so a
+solo repo with no git remote configured would render `⟳ N to push` for
+ops that were never meant to go anywhere. `⟳ no remote` is the honest
+statement available instead; only a resolved, real remote name reaches
+`Store.SyncStatus`.
 `EventCreated`/`EventChanged` name the object that changed, so a
 screen currently showing that object re-queries it — a per-screen
 concern, `WRTN-19`/`20`/`21`'s to design. `EventReset` is different in
@@ -506,16 +570,23 @@ screen (the per-screen unhappy states are `WRTN-19`, `WRTN-20`, and
   `Identity` with `PersonID == ""` and a non-nil `PersonIDErr` — no
   `writ.personId` configured, no usable `user.email` to fall back to,
   or a malformed value that `DerivePersonID` refuses to guess at
-  (`engine/identity`). Every `Assignee` and `Author` filter the inbox
-  runs (`## Home is the inbox`) would compare against that empty id,
-  so every inbox query returns nothing — a result indistinguishable from
-  a caught-up identity with nothing outstanding unless the shell
-  checks first. Written checks `PersonIDErr` before running any inbox
-  query; if it's set, the shell shows an explicit "identity not
-  configured" screen naming what's missing and the git config to set,
-  instead of the empty-inbox copy above. This is most likely to be
-  the very first screen anyone sees, which is exactly why it can't be
-  allowed to lie.
+  (`engine/identity`). Every `Assignee` filter the inbox runs
+  (`## Home is the inbox`, sources 1 and 2) would compare against that
+  empty id and return nothing. `Author` (source 3) is not itself
+  broken by a `PersonIDErr` — it compares against `Identity.Author.Email`,
+  derived independently and earlier in `Load` from `user.email` — but
+  the shell does not try to run a partial inbox off of it: a broken
+  `PersonID` also means every write this identity would make (assign,
+  approve, comment as) is broken the same way, so the same "identity
+  not configured" screen applies uniformly rather than showing an
+  inbox that reads fine and writes nowhere. A result indistinguishable
+  from a caught-up identity with nothing outstanding is the failure
+  mode either way, unless the shell checks first — so Written checks
+  `PersonIDErr` before running any inbox query and, if it's set, shows
+  an explicit "identity not configured" screen naming what's missing
+  and the git config to set, instead of the empty-inbox copy above.
+  This is most likely to be the very first screen anyone sees, which
+  is exactly why it can't be allowed to lie.
 
 ## Out of scope
 
