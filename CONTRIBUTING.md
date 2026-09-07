@@ -94,3 +94,18 @@ Two independently versioned things live in this repo, tagged separately:
 
 This mirrors how Go itself tags submodules, so a `<module-path-prefix>/vX.Y.Z`
 tag reads as familiar rather than repo-specific cleverness.
+
+Pushing a `ui/vX.Y.Z` tag now does something: it fires
+`.github/workflows/release-ui.yml`, which gates on `make check-ui-release`
+(the full TypeScript check suite, plus a check that the tag, `ui/package.json`'s
+`version`, and the lockfile agree) and, once that passes, publishes
+`@writtendev/ui` to npm with provenance on. Pushing this tag should be a
+maintainer-only action, but the only thing actually enforcing that today
+is push rights on this repo: the publish credential lives in the
+`NPM_TOKEN` repository secret, not with any individual, so anyone who can
+push a matching tag causes a publish without holding an npm credential of
+their own. Push (tag-create) rights are therefore the effective gate,
+until a GitHub tag ruleset or a protected Environment on the release job
+narrows who that is — see `ARCHITECTURE.md`'s Publishing paragraph. A tag
+push should only follow a merged PR that already bumped
+`ui/package.json`'s `version` per `ui/README.md`'s `## Versioning`.

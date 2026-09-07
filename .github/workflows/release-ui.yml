@@ -1,0 +1,75 @@
+name: release-ui
+
+# Fires on a `ui/vX.Y.Z` tag push — the only thing that publishes
+# @writtendev/ui to npm. Pushing this tag should be maintainer-only, but
+# the only thing actually enforcing that today is push (tag-create) rights
+# on this repo: the publish credential lives in the NPM_TOKEN repository
+# secret, not with any individual, so anyone with push rights can push a
+# matching tag and cause a publish (see CONTRIBUTING.md's `## Tagging`). A
+# GitHub tag ruleset or protected Environment would narrow that; neither
+# exists yet.
+on:
+  push:
+    tags: ['ui/v*']
+
+permissions:
+  contents: read
+  # id-token: write is what lets npm mint the provenance attestation for
+  # this publish (publishConfig.provenance in ui/package.json means the
+  # `npm publish` step below needs no --provenance flag).
+  id-token: write
+
+jobs:
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The ancestry guard below needs history to check against
+          # origin/main, not just the tagged commit.
+          fetch-depth: 0
+
+      # Release policy, not build/lint/test/typecheck, so this is
+      # legitimately outside a Makefile target — the same carve-out
+      # ci.yml's fan-in job already sits in (see AGENTS.md's `## Dispatch`
+      # pipeline-integrity invariant). A tag pushed from a commit that was
+      # never merged to main must not publish.
+      #
+      # Runs before any dependency install (npm ci below) so an untrusted
+      # tag fails before its lockfile's install-lifecycle scripts ever run.
+      #
+      # This guard is advisory, not a security control: GitHub evaluates
+      # the workflow definition *from the tagged commit itself*, so a
+      # commit that deletes or neuters this step runs without it. It only
+      # catches the accidental case (a stray tag on an unmerged branch),
+      # not a deliberate one. The real control — a GitHub tag ruleset on
+      # `refs/tags/ui/v*` and/or a protected Environment gating this job's
+      # `NPM_TOKEN` — is out-of-tree repository configuration and remains
+      # an outstanding human step (see ARCHITECTURE.md's Publishing
+      # paragraph and the PR description).
+      - name: verify tagged commit is on main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          # Writes the registry auth line into .npmrc for `npm publish`,
+          # sourced from NODE_AUTH_TOKEN below.
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+
+      # The whole TypeScript gate, plus the tag<->version<->lockfile check.
+      # .nvmrc pins Node 22.18, whose bundled npm 10.x already supports
+      # publishConfig.provenance, so no npm-CLI upgrade step is needed here
+      # (trusted publishing/OIDC would need npm >= 11.5.1, which is why
+      # this repo isn't doing that yet — see ARCHITECTURE.md's `/ui`
+      # section).
+      - run: make check-ui-release TAG="$GITHUB_REF_NAME"
+
+      - run: npm publish -w @writtendev/ui
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
