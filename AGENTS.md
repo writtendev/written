@@ -106,10 +106,14 @@ guess.
   and — via `check-ts`'s dependency on `build-ts` — the `vite build` that
   produces `web`'s embedded bundle. `ui` is `buildless: true` (see
   `## Layout`), so `build-ts` does not touch it; `check-ts` instead runs
-  `ui`'s own dev-harness build as a separate, explicit step
-  (`build:harness`, which is what exercises the Tailwind `@source` wiring)
-  after `build-ts` completes — deleting that line would remove the only
-  gate on that wiring, not leave it covered by `build-ts`. All of this must
+  `ui`'s own dev-harness build as a separate, explicit step (`build:harness`)
+  after `build-ts` completes — deleting that line would drop the only build
+  coverage `ui/dev` has, not leave it covered by `build-ts`. That coverage
+  has a known gap: `build:harness` runs the harness's Tailwind
+  `@source '../src'` wiring through a real `tsc`+`vite` build, so it fails
+  on anything that breaks the build, but Tailwind resolves an unmatched
+  `@source` glob to zero classes rather than an error — a typo'd path still
+  builds clean, so that specific mistake has no gate yet. All of this must
   pass locally before any push, by an implementer, a fixer, or a human. CI
   runs the same Makefile
   targets rather than enumerating its own list: the path-filtered `go` job

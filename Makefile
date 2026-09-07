@@ -23,9 +23,29 @@ GOLANGCI_LINT_VERSION := v1.64.8
 # internals.
 GO_PACKAGES := ./cmd/... ./internal/...
 
-.PHONY: build build-ts test race lint check-go check-ts check install clean check-node-modules
+.PHONY: build build-ts test race lint check-go check-ts check install clean check-node-modules check-go-packages
 
-build:
+# GO_PACKAGES above is a hand-written allowlist, not a derivation, so it can
+# drift silently: a first-party Go package added anywhere else (e.g. a `.go`
+# file under web/ to drive a `//go:embed web/dist` — go:embed patterns can't
+# contain `..`, so ARCHITECTURE decision 5's "one binary" mechanism needs
+# one) would simply never be built, tested, or linted by GO_PACKAGES, while
+# CI's `**/*.go` path filter still fires the `go` job that's silently
+# skipping it. This fails loudly instead of letting that happen quietly:
+# any `.go` file outside node_modules/ (pruned at any depth — third-party,
+# see GO_PACKAGES's comment above) and outside .claude/worktrees/ (nested
+# per-ticket worktrees, gitignored, not this module's own code) that also
+# isn't under cmd/ or internal/ trips it. Keep the two path exclusions
+# below in sync with GO_PACKAGES if that variable ever grows a third root.
+check-go-packages:
+	@stray="$$(find . \( -name node_modules -o -path './.claude/worktrees' \) -prune -o -type f -name '*.go' -print | grep -vE '^\./(cmd|internal)/')"; \
+	if [ -n "$$stray" ]; then \
+		echo "Go file(s) outside cmd/ and internal/ — not covered by GO_PACKAGES in Makefile:" >&2; \
+		echo "$$stray" >&2; \
+		exit 1; \
+	fi
+
+build: check-go-packages
 	go build $(GO_PACKAGES)
 
 # Fails naming the command to run instead of letting build-ts/check-ts die
@@ -88,7 +108,7 @@ lint:
 # check-go and check-ts are what CI's path-filtered jobs run, so a ui/web-only
 # change never pays for the Go suite and vice versa. check runs both, and is
 # the one command a release build (or a change touching both halves) needs.
-check-go: test race lint
+check-go: check-go-packages test race lint
 
 # check-ts depends on build-ts so that `make check` actually covers what
 # CI's always-on `build` job runs: without this, a change that breaks
@@ -102,9 +122,13 @@ check-go: test race lint
 # the steps below), so a fresh clone sees the "run npm ci" message rather
 # than build-ts's own failure. `--max-warnings 0` and `format:check` are
 # what make eslint/prettier warnings a hard failure instead of a quiet
-# pass; `build:harness` is what exercises `ui`'s dev harness build (and the
-# `@source '../src'` Tailwind wiring) so that path isn't covered by no gate
-# at all — see ui/package.json's `build:harness` script.
+# pass; `build:harness` runs `ui`'s dev harness (and its `@source '../src'`
+# Tailwind wiring) through a real `tsc`+`vite` build, so it fails on
+# anything that breaks that build — but not on a typo'd `@source` path by
+# itself: Tailwind resolves an unmatched `@source` glob to zero classes
+# rather than an error, so that specific mistake has no gate today. See
+# ui/package.json's `build:harness` script and AGENTS.md's `## Dispatch`
+# section.
 check-ts: build-ts
 	@# `npm ci` is CI's real gate (its lock-vs-manifest check), and it isn't
 	@# a Makefile target — see AGENTS.md's `## Dispatch` section. `--dry-run`

@@ -14,8 +14,8 @@
     "typecheck": "make check-ts",
     "build": "make build-ts",
     "lint": "eslint . --max-warnings 0",
-    "format": "prettier --write ui web package.json eslint.config.js .prettierrc.json",
-    "format:check": "prettier --check ui web package.json eslint.config.js .prettierrc.json"
+    "format": "prettier --write $(node -pe \"require('./package.json').workspaces.join(' ')\") package.json eslint.config.js .prettierrc.json",
+    "format:check": "prettier --check $(node -pe \"require('./package.json').workspaces.join(' ')\") package.json eslint.config.js .prettierrc.json"
   },
   "devDependencies": {
     "@eslint/compat": "^2.1.1",
