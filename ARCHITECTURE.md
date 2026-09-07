@@ -75,8 +75,10 @@ The embedded browser client for `written web` (`@writtendev/web`), npm workspace
 - **Rationale:** The Elm architecture in Bubble Tea provides deterministic state transitions, clear message dispatching, excellent terminal compatibility, and great testability.
 
 **Bubble Tea version line: v2.** The v2 line is a shipped stable release
-(20 published releases, not a beta), and lipgloss/v2 and bubbles/v2 already
-require it, so the choice is really "v1 or v2 for everything, made once."
+(10 published `v2.0.x` releases, not a beta — the proxy lists 20 versions
+total, but 10 of those are pre-release `-alpha`/`-beta`/`-rc` tags), and
+lipgloss/v2 and bubbles/v2 already require it, so the choice is really "v1
+or v2 for everything, made once."
 Migrating the Elm-architecture runtime later, after screens are built
 against it, is the expensive direction to move; starting on v2 avoids that
 migration entirely. WRTN-9 (Bubble Tea app skeleton) is the first ticket
@@ -111,7 +113,7 @@ forward from an earlier planning pass.
 | huh | defer | `charm.land/huh/v2` v2.0.3 | It owns focus and key handling, and Written has its own focus model and keybinding grammar coming in WRTN-2/WRTN-5. Deferred to whichever ticket builds the review-open flow, rather than adopted speculatively now. |
 | harmonica | reject (for now) | `github.com/charmbracelet/harmonica` v0.2.0 | Motion is not load-bearing anywhere in the current screen map, and this is a two-release, long-quiet module. Revisit only when a specific transition needs it. |
 | x/ansi | defer as a direct dependency | `github.com/charmbracelet/x/ansi` v0.11.8 | Already in the tree transitively via bubbletea/lipgloss, so it costs nothing today. Promote to a direct import the first time width is measured ourselves (an emoji or CJK comment), rather than pre-adopting. |
-| fang | reject | `github.com/charmbracelet/fang` v1.0.0 | `cmd/written/main.go` has four flags on stdlib `flag` and that works; fang pulls `spf13/cobra` plus `muesli/mango-cobra` for CLI framing Written does not need. Same call writ made. |
+| fang | reject | `github.com/charmbracelet/fang` v1.0.0 | `cmd/written/main.go` registers five flags (`-C`, `-version`, `-v`, `-help`, `-h`, covering three distinct settings) on stdlib `flag` and that works; fang pulls `spf13/cobra` plus `muesli/mango-cobra` for CLI framing Written does not need. Same call writ made. |
 
 **`go.mod` is not touched by this decision.** Nothing in the tree imports
 any of the adopted libraries yet, so running `go get` for all five now
