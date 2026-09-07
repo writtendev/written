@@ -59,11 +59,13 @@ independently-testable language in this repo, not a second copy of it: see
 other to be tested.
 
 `ui/` itself splits into `ui/src` — what ships, and the only directory a
-consumer's Tailwind `@source` points at — and `ui/dev`, a local dev harness
-for previewing `ui/src` in isolation that ships to nobody. Vite's `root`
-points at `ui/dev`, which confines Tailwind's automatic source detection
-there too, so `ui/dev/index.css` adds `@source '../src'` explicitly to pull
-`ui/src` into the harness's own build. See `ui/README.md`.
+consumer's Tailwind `@source` points at — `ui/dev`, a local dev harness
+for previewing `ui/src` in isolation that ships to nobody, and
+`ui/scripts`, gate scripts for `make check-ts` (currently just
+`check-exports.mjs`) that also ship to nobody. Vite's `root` points at
+`ui/dev`, which confines Tailwind's automatic source detection there too,
+so `ui/dev/index.css` adds `@source '../src'` explicitly to pull `ui/src`
+into the harness's own build. See `ui/README.md`.
 
 ## Workflow
 
@@ -103,11 +105,15 @@ guess.
   failing deep inside some other tool), then runs a lockfile-sync check
   equivalent to `npm ci`, typecheck across `ui`/`web`, `eslint . --max-warnings
   0` and `prettier --check` at the repo root (covering `ui/` and `web/`),
-  and — via `check-ts`'s dependency on `build-ts` — the `vite build` that
-  produces `web`'s embedded bundle. `ui` is `buildless: true` (see
-  `## Layout`), so `build-ts` does not touch it; `check-ts` instead runs
-  `ui`'s own dev-harness build as a separate, explicit step (`build:harness`)
-  after `build-ts` completes — deleting that line would drop the only build
+  `ui/scripts/check-exports.mjs` (resolves every specifier `ui`'s `exports`
+  map advertises through Node's real resolver, and checks the lockfile's
+  recorded version for `ui` against `ui/package.json`'s — see
+  `ui/README.md` and the seventh review invariant below), and — via
+  `check-ts`'s dependency on `build-ts` — the `vite build` that produces
+  `web`'s embedded bundle. `ui` is `buildless: true` (see `## Layout`), so
+  `build-ts` does not touch it; `check-ts` instead runs `ui`'s own
+  dev-harness build as a separate, explicit step (`build:harness`) after
+  `build-ts` completes — deleting that line would drop the only build
   coverage `ui/dev` has, not leave it covered by `build-ts`. That coverage
   has a known gap: `build:harness` runs the harness's Tailwind
   `@source '../src'` wiring through a real `tsc`+`vite` build, so it fails
@@ -235,3 +241,19 @@ and moved here verbatim with it in `WRTN-42`:
   without an explicit decision.** A PR that adds a fourth component
   without a ticket that says to is a finding, however reasonable the
   component is on its own.
+
+The following, scoped to `ui/`, originates here in `WRTN-37`:
+
+- **`ui/package.json`'s `exports` map is the entire public surface, and a
+  version bump is a review call `ui/scripts/check-exports.mjs` cannot make
+  for you.** No wildcard keys — an enumerable map is what makes the gate
+  possible — and no entry pointing at a file that doesn't exist yet (see
+  `ui/README.md`'s reserved `./api` slot for the pattern to follow instead:
+  document the name, add the entry and the file together, later). Beyond
+  what the gate checks mechanically, a reviewer's own job: any change
+  touching `ui/src/**` or `ui/package.json`'s `exports` should carry a
+  version bump per `ui/README.md`'s `## Versioning` — minor for anything a
+  consumer must react to, patch for purely additive or internal change. A
+  PR that changes the surface without bumping the version, or bumps the
+  wrong segment, is a finding even though `make check` stays green either
+  way.
