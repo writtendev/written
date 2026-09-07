@@ -61,11 +61,13 @@ other to be tested.
 `ui/` itself splits into `ui/src` — what ships, and the only directory a
 consumer's Tailwind `@source` points at — `ui/dev`, a local dev harness
 for previewing `ui/src` in isolation that ships to nobody, and
-`ui/scripts`, gate scripts for `make check-ts` (currently just
-`check-exports.mjs`) that also ship to nobody. Vite's `root` points at
-`ui/dev`, which confines Tailwind's automatic source detection there too,
-so `ui/dev/index.css` adds `@source '../src'` explicitly to pull `ui/src`
-into the harness's own build. See `ui/README.md`.
+`ui/scripts`, gate scripts that also ship to nobody, of which
+`check-exports.mjs` runs under `make check-ts` and `check-release-tag.mjs`
+deliberately does not — it runs only from `make check-ui-release` at
+release time, because it needs a `TAG` that exists only then. Vite's `root`
+points at `ui/dev`, which confines Tailwind's automatic source detection
+there too, so `ui/dev/index.css` adds `@source '../src'` explicitly to
+pull `ui/src` into the harness's own build. See `ui/README.md`.
 
 ## Workflow
 
