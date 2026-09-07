@@ -70,9 +70,84 @@ The embedded browser client for `written web` (`@writtendev/web`), npm workspace
 
 ## Settled technical decisions
 
-### 1. UI Framework: Bubble Tea & Lipgloss
-- **Decision:** Use `github.com/charmbracelet/bubbletea`, `github.com/charmbracelet/lipgloss`, and `github.com/charmbracelet/bubbles`.
+### 1. UI Framework: Bubble Tea & Lipgloss, and the wider Charm survey
+- **Decision:** Use `bubbletea`, `lipgloss`, and `bubbles`, on the v2 line.
 - **Rationale:** The Elm architecture in Bubble Tea provides deterministic state transitions, clear message dispatching, excellent terminal compatibility, and great testability.
+
+**Bubble Tea version line: v2.** The v2 line is a shipped stable release
+(10 published `v2.0.x` releases, not a beta — the proxy lists 20 versions
+total, but 10 of those are pre-release `-alpha`/`-beta`/`-rc` tags), and
+lipgloss/v2 and bubbles/v2 already require it, so the choice is really "v1
+or v2 for everything, made once."
+Migrating the Elm-architecture runtime later, after screens are built
+against it, is the expensive direction to move; starting on v2 avoids that
+migration entirely. WRTN-9 (Bubble Tea app skeleton) is the first ticket
+that actually imports it.
+
+**Module-path note.** Charm's v2 line has migrated its canonical module
+path to `charm.land/*`. `github.com/charmbracelet/bubbletea/v2` still
+resolves on the proxy, but the module's own `go.mod` declares `module
+charm.land/bubbletea/v2`, so `charm.land/...` is the path to import. The
+migration is partial, not universal: `fang`, `harmonica`, and `x/ansi`
+still declare `github.com/charmbracelet/...` as their module path even
+though `charm.land/fang` etc. also resolve on the proxy — importing those
+three under a `charm.land` path would be a module-path mismatch, not an
+equivalent alias.
+
+**The full survey and verdict.** Evaluated against the house rule that new
+dependencies need a reason and that scope growth and framework-building
+are bugs, at Crush-level polish as the bar. Versions were resolved against
+the live module proxy (`go list -m -versions <path>`) and each declared
+module path confirmed against the module's own `go.mod`
+(`go mod download -json <path>@<version>`, then `grep '^module '` in the
+resulting `Dir`) on 2026-09-07, at implementation time — not copied
+forward from an earlier planning pass.
+
+| Library | Verdict | Path and version | Reason |
+| -- | -- | -- | -- |
+| bubbletea | adopt, **v2** | `charm.land/bubbletea/v2` v2.0.9 | The runtime; non-negotiable. v2 is a shipped stable line, not a beta, and migrating off v1 later is the expensive move, so start on v2. |
+| lipgloss | adopt, **v2** | `charm.land/lipgloss/v2` v2.0.6 | Styling and layout; also what `bubbles/v2` itself requires, so the v2 line is forced by the bubbletea choice regardless. |
+| bubbles | adopt, **v2** | `charm.land/bubbles/v2` v2.2.1 | Stock `viewport`/`textarea`/`textinput`/`list`/`table`/`spinner`/`key`/`help`/`paginator`. WRTN-7 (widget inventory) decides which are used stock vs. wrapped. |
+| glamour | adopt, **v2** | `charm.land/glamour/v2` v2.0.1 | Review descriptions, issue bodies, and comments are all markdown; hand-rolling a renderer is exactly the framework-building the house rules forbid. Cost to record: it declares `go 1.25.8`, so the repo's `go` directive rises to at least that the moment it enters `go.mod`. |
+| chroma | adopt | `github.com/alecthomas/chroma/v2` v2.27.0 | Syntax highlighting in the diff viewer. glamour/v2 already pulls it transitively (at v2.14.0, confirmed in glamour's own `go.mod`), so adopting it directly is a promotion to direct dependency, not a new tree. |
+| huh | defer | `charm.land/huh/v2` v2.0.3 | It owns focus and key handling, and Written has its own focus model and keybinding grammar coming in WRTN-2/WRTN-5. Deferred to whichever ticket builds the review-open flow, rather than adopted speculatively now. |
+| harmonica | reject (for now) | `github.com/charmbracelet/harmonica` v0.2.0 | Motion is not load-bearing anywhere in the current screen map, and this is a two-release, long-quiet module. Revisit only when a specific transition needs it. |
+| x/ansi | defer as a direct dependency | `github.com/charmbracelet/x/ansi` v0.11.8 | Already in the tree transitively via bubbletea/lipgloss, so it costs nothing today. Promote to a direct import the first time width is measured ourselves (an emoji or CJK comment), rather than pre-adopting. |
+| fang | reject | `github.com/charmbracelet/fang` v1.0.0 | `cmd/written/main.go` registers five flags (`-C`, `-version`, `-v`, `-help`, `-h`, covering three distinct settings) on stdlib `flag` and that works; fang pulls `spf13/cobra` plus `muesli/mango-cobra` for CLI framing Written does not need. Same call writ made. |
+
+**`go.mod` is not touched by this decision.** Nothing in the tree imports
+any of the adopted libraries yet, so running `go get` for all five now
+would land them marked `// indirect` (nothing imports them) alongside
+roughly two dozen further transitive `// indirect` lines — the opposite of
+"reflects the adopted set and nothing else" — and the very next `go mod
+tidy` would delete the entire `require` block again, shrinking `go.mod`
+back to three lines. What it would not undo is the `go` directive: `go
+get` raises it from `1.25.0` to `1.25.8` on account of glamour/v2's own
+floor, and `go mod tidy` never lowers a `go` directive once raised
+(reproduced end to end in a scratch module — `tidy` strips the `require`
+block but leaves `go 1.25.8` behind). The one cost of a premature `go get`
+that actually persists is exactly the one `tidy` cannot clean up, against
+a `README.md` that promises "Go 1.25+" — a better argument for deferring
+than a clean revert would have been. So this table, not `go.mod`, is the
+durable record of the decision: each
+library enters `go.mod` at first import, pinned at the version recorded
+here — bubbletea, lipgloss, and bubbles in WRTN-9; glamour and chroma when
+the markdown renderer and diff viewer land.
+
+**The build-ourselves list.** What nothing in the Charm ecosystem or
+adjacent terminal libraries covers, so Written builds it directly. This
+list is the input to WRTN-7 (widget inventory):
+
+- **The diff viewer** — unified and/or split, syntax highlighted, gutter
+  room for thread markers, expandable context. Already known to be on
+  this list; nothing in the ecosystem does diff-with-inline-threads.
+- **Inline comment threads rendered inside the diff** — rows between diff
+  lines that expand, collapse, and stay anchored as the viewport scrolls.
+- **The comment composer** — a `textarea` that knows about drafts,
+  markdown preview, and submit-versus-cancel.
+- **Command palette with fuzzy matching** — left unresolved rather than
+  pre-decided, since nothing stock may be close enough; WRTN-7 owns that
+  call.
 
 ### 2. Reactive event integration
 - **Decision:** Bridge `store.Watch(ctx) <-chan Event` into Bubble Tea's event loop via asynchronous commands (`tea.Cmd`).
