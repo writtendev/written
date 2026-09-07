@@ -46,7 +46,7 @@ touch `internal/ui/ui.go`.
 
 `VISION.md` already commits to the inbox framing ("An inbox-driven
 workflow"). The inbox is the set of objects that need this identity's
-attention, defined against three engine queries, not a vibe:
+attention, defined against three candidate sources, not a vibe:
 
 1. **Reviews assigned to me and not closed** — `Query.Reviews` with
    `ReviewFilter{Assignee: [me], Status: [open statuses]}`. The
@@ -57,11 +57,23 @@ attention, defined against three engine queries, not a vibe:
    `IssueFilter{Assignee: [me], State: [open states]}`, the same shape
    as above.
 3. **Objects I author or participate in with unread activity** —
-   candidate object IDs come from querying reviews and issues I
-   authored or am assigned to, then narrowed through
-   `ReadState.Unread(ctx, ids...)`, which returns the unread subset of
-   the ids passed in. Unread is not itself a filter on a query; it is
-   a second pass over ids the first two queries already produced.
+   candidate object IDs come from three sources, not two: reviews and
+   issues I authored, reviews and issues I'm assigned to (already
+   covered by 1 and 2, but repeated here because they're also
+   candidates for *unread* activity, not just for being open), and
+   the subjects of comments I authored — `Query.Comments` with
+   `CommentFilter{Author: [me]}`, whose results carry `SubjectType`
+   and `SubjectID`, i.e. exactly the participation half of "author or
+   participate in" that authorship and assignment don't cover. All
+   three candidate sets are narrowed through the same
+   `ReadState.Unread(ctx, ids...)` pass, which returns the unread
+   subset of the ids passed in. Unread is not itself a filter on a
+   query; it is a second pass over ids the candidate queries already
+   produced. Without the comment-authored source, a review I only
+   commented on — never authored, never assigned — could accumulate
+   unread replies with no path to the inbox, which is exactly the
+   "unread discussion threads" case `VISION.md` names as one of the
+   inbox's three jobs; this source is what closes it.
 
 `me` resolves once per session via `identity.Load(ctx, repoDir)`
 (`engine/identity`), which is the person-id every `Assignee` filter
@@ -109,11 +121,28 @@ defines. Everything else — command palette, filter line, help overlay,
 comment composer — is summoned: it appears on demand and gives its
 space back.
 
-**Decision: the sync indicator is driven by `Store.Watch`, and a
-`Reset` never touches the stack.** `⟳ synced` reflects the shell's
-subscription to `store.Watch(ctx) <-chan Event`
-(`ARCHITECTURE.md` decision 2): it switches while a query triggered by
-an incoming event is in flight and back to `⟳ synced` once it settles.
+**Decision: the sync indicator reflects `Store.SyncStatus`, and a
+`Reset` never touches the stack.** The top bar's sync row exists to
+answer "is this current", against the remote — not "is a local query
+pending", which is a different question `Store.Watch` alone can't
+answer: a clone that has never fetched has no query in flight either,
+and rendering `⟳ synced` on that basis would be asserting remote
+currency the shell has no basis for. `Store.SyncStatus(ctx, remote)`
+(`engine/sync.go`) is the engine call that actually reports this, and
+it's local and immediate — it reads the local git storer and the
+projection's sync cursors, no network round-trip — returning
+`Unsynced` (local ops not yet pushed) and `Diverged` (the remote
+chain's tip is not an ancestor of the local one), both as of the last
+successful `Store.Sync`. The shell renders `⟳ synced` when neither is
+true, `⟳ N to push` when `Unsynced > 0`, and `⟳ diverged` when
+`Diverged` is set, re-evaluating after every `Store.Watch` event and
+after any explicit sync. This is a narrower, honest claim rather than
+a stronger one: the never-fetched clone above still renders `⟳ synced`
+(nothing local to push, no divergence detected against what the last
+sync recorded), but that's now a true statement about local state as
+of the last sync, not a guess dressed as a fact about the remote —
+the engine has no immediate, local way to know more than that, and
+the indicator no longer claims to.
 `EventCreated`/`EventChanged` name the object that changed, so a
 screen currently showing that object re-queries it — a per-screen
 concern, `WRTN-19`/`20`/`21`'s to design. `EventReset` is different in
@@ -149,30 +178,43 @@ What each bar shows, by width:
 | --- | --- | --- |
 | 120 cols | repo, identity, sync state, current screen name | full action list with labels |
 | 100 cols | repo, identity, sync state | action list, longer labels abbreviated |
-| 80 cols | repo, sync state (identity dropped) | keys only, no labels, plus a `?` for help |
+| 80 cols | repo, sync state (identity dropped) | highest-priority action or two, short labels, plus `?` for help |
 
 ## Navigation model
 
 **Decision: a screen stack.** Activating a row pushes a new screen;
 `esc` pops back to the previous one. One global jump — the command
-palette — can jump to any screen directly without unwinding the stack,
-and two direct keys (`g i` for inbox, `g r`/`g I` for the two
-top-level lists, exact bindings are `WRTN-5`'s call) reach the
-top-level screens without the stack being the only way to move. The
-stack has exactly one owner: the root model holds it, and "which
-screen is current" is always its top frame. This is the property
-`WRTN-9` implements against.
+palette's quick-switch commands — can jump directly to one of the
+three top-level screens (Inbox, Review list, Issue list), and two
+direct keys (`g i` for inbox, `g r`/`g I` for the two top-level lists,
+exact bindings are `WRTN-5`'s call) do the same. The stack has exactly
+one owner: the root model holds it, and "which screen is current" is
+always its top frame. This is the property `WRTN-9` implements
+against.
 
-**A jump resets the stack; it does not push onto it.** The palette and
-`g i`/`g r`/`g I` all replace the entire stack with a single frame at
-the destination screen, rather than stacking the destination on top of
-wherever you were. This keeps the jump case bounded — repeated jumps
-can't grow the stack, unlike a push would — and gives `esc` a
-well-defined answer right after one: there is nothing below the new
-root to pop, the same as `esc` at Inbox on a fresh launch. Escape
-*from the palette itself*, without picking anything, is the one
-exception: that returns to wherever you opened it, unchanged, because
-no jump happened.
+**A jump resets the stack; it does not push onto it. A jump's
+destination is one of the three top-level screens — nothing else.**
+The palette's quick-switch commands and `g i`/`g r`/`g I` all replace
+the entire stack with a single frame at Inbox, Review list, or Issue
+list, rather than stacking the destination on top of wherever you
+were. This keeps the jump case bounded — repeated jumps can't grow the
+stack, unlike a push would — and gives `esc` a well-defined answer
+right after one: there is nothing below the new root to pop, the same
+as `esc` at Inbox on a fresh launch. Escape *from the palette itself*,
+without picking anything, is the one exception: that returns to
+wherever you opened it, unchanged, because no jump happened.
+
+Searching the palette for a specific review or issue and opening it is
+a **different** palette action from a quick-switch, and it is not a
+jump: it pushes the selected object's detail screen onto whatever
+stack was already current, exactly like activating a row would. This
+is what keeps `esc: back` meaningful on a detail screen reached that
+way — the empty-inbox screen's "`:` to search" leads here, and it
+would not make sense for the ordinary act of searching for a review
+and opening it to also wipe the stack out from under you. The
+palette's *jump* destinations are exactly the three top-level screens
+named above — never "any screen" — precisely so that opening a
+specific object through it can stay a push instead.
 
 **Rejected: tabbed panes.** Tabs invite unbounded tab management (how
 many can be open, how do you close one, what happens when you open a
@@ -217,13 +259,17 @@ screen at a time, which is what narrow terminals need.
   has exactly one owner, and its top frame is always "which screen is
   current."
 
-  Command palette (:), g i, g r, and g I are jumps, not pushes: each
-  resets the stack to a single frame at the destination — Inbox,
-  Review list, or Issue list — discarding whatever was on the stack
-  before. A jump can't grow the stack, and esc right after one has
-  nothing below it to pop (see the navigation decision above). Escape
-  from the palette itself, without picking anything, returns to
-  wherever you opened it, unchanged — that's not a jump.
+  The palette's quick-switch commands, g i, g r, and g I are jumps,
+  not pushes: each resets the stack to a single frame at the
+  destination — Inbox, Review list, or Issue list, and nothing else —
+  discarding whatever was on the stack before. A jump can't grow the
+  stack, and esc right after one has nothing below it to pop (see the
+  navigation decision above). Escape from the palette itself, without
+  picking anything, returns to wherever you opened it, unchanged —
+  that's not a jump. Searching the palette for a specific review or
+  issue and opening it is neither of those: it pushes the result's
+  detail screen onto the current stack like any other activation, so
+  esc still pops back to wherever the search was opened from.
 ```
 
 ## Review detail and issue detail
@@ -231,19 +277,25 @@ screen at a time, which is what narrow terminals need.
 Both detail screens sit under the same top/bottom chrome as the inbox
 — description and status first, then the object-specific content, then
 its comment thread. A review detail's diff is one push further in
-(`enter` on the "view diff" line), not inlined into this screen. Drawn
-at 120 columns, same as the empty inbox above, where the full top bar
-and a fully labeled hint bar are both correct per the width table:
+(`enter` on the "view diff" line), not inlined into this screen. The
+id shown for each object (`RFX a1c92f0`, `ISS 9f0e2b7`) is writ's real
+short form — a lowercase hex prefix of the 32-character object id,
+per `spec/identifiers.md`'s "Short forms and presentation" section —
+not a sequential number; writ has no field for one, and
+`spec/identifiers.md` closes sequential numbering by name as a
+rejected alternative. Drawn at 120 columns, same as the empty inbox
+above, where the full top bar and a fully labeled hint bar are both
+correct per the width table:
 
 ```text
 ┌ written · writ · you@example · Review detail ───────────────────────────────────────────────────────────── ⟳ synced ─┐
-│ RFX #142 · fix: race in sync cursor advance                                                                 assigned │
+│ RFX a1c92f0 · fix: race in sync cursor advance                                                              assigned │
 │ opened by jm · 3 days ago · status: open                                                                             │
 │                                                                                                                      │
 │ The sync cursor advances before the projection commit lands, so a crash between the two leaves                       │
 │ state.db pointing past ops it never applied.                                                                         │
 │                                                                                                                      │
-│ > 3 files changed · view diff (enter)                                                                                │
+│ > view diff (enter)                                                                                                  │
 │                                                                                                                      │
 │ Threads (2)                                                                                                          │
 │  km: does this need a lock around the cursor write too?                                                              │
@@ -254,7 +306,7 @@ and a fully labeled hint bar are both correct per the width table:
 
 ```text
 ┌ written · writ · you@example · Issue detail ────────────────────────────────────────────────────────────── ⟳ synced ─┐
-│ ISS #88 · panic on empty diff hunk                                                                          assigned │
+│ ISS 9f0e2b7 · panic on empty diff hunk                                                                      assigned │
 │ opened by k · 1 week ago · state: in progress · priority: high                                                       │
 │                                                                                                                      │
 │ Loading a review with a zero-line hunk panics in the diff renderer instead of showing an empty                       │
@@ -267,6 +319,28 @@ and a fully labeled hint bar are both correct per the width table:
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
   c: comment  s: change state  a: assign  esc: back  ?: help
 ```
+
+**The Diff viewer rests on an engine capability that does not exist
+yet, stated here the same way the `Workspace` gap is stated in
+`## Cross-repo`.** `api/engine.txt` has no diff or changed-files
+surface at all — a `Diff`/`FileChange` type or a method that produces
+one is not there. `state.Review.Revisions` gives two commit shas
+(`Base`, `Head`) and nothing about what changed between them, and
+`engine/resolve` is anchor resolution: `resolve.NewTree` builds a tree
+from file contents the *caller* supplies, it does not read them from
+anywhere. The Diff viewer screen above, and the "view diff" affordance
+on the Review detail wireframe, therefore depend on a capability writ
+does not expose today; the earlier version of that wireframe's
+invented "3 files changed" figure has been dropped rather than left
+implying otherwise. The only route to producing a diff without it is
+git plumbing outside the engine's public contracts, which
+`AGENTS.md`'s public-API-only invariant rules out on its own terms —
+so this is not Written's gap to close by reaching past the engine.
+`WRTN-20` inherits this stated plainly, the way `WRTN-30` inherits the
+`Workspace` correction: a diff surface needs to be designed into
+writ's public engine API first; until then, the Diff viewer is a
+screen this document names and places in the navigation model, not
+one it can fully ground in the engine as it stands.
 
 ## Reviews and issues coexist
 
@@ -299,6 +373,17 @@ correctly-ordered page back — Written owns the merge, and a "page 2"
 of the inbox means re-running both queries and re-merging, not
 offsetting one.
 
+**"Ordered by attention" means this:** since Written owns the merge,
+Written also owns the sort, and it is this — unread outranks read
+first (an object with unread activity, per `ReadState.Unread`, sorts
+above one without, regardless of type or assignment), then
+`UpdatedAt` descending within each of those two groups, using the
+timestamp `ReviewResult`/`IssueResult` already carry. This is the same
+ownership this section already establishes for the merge itself, not
+a new engine dependency — no query does this ordering, Written's merge
+step does, and it is settled here rather than left for whichever
+implementation gets to it first to invent.
+
 ## Cross-repo
 
 Issues live in a workspace repo; reviews live with the code they
@@ -329,6 +414,14 @@ how it gets resolved.
   object is local and known, it has simply not picked up a repo-id,
   so this is neither the qualified case nor the unresolvable one
   above.
+- The top bar's `repo` field follows the current frame, not the
+  session's start repo. `## Persistent chrome` gives that field a
+  permanent row precisely to answer "where am I", and once a
+  cross-repo push lands, "where am I" is the target's repository, not
+  the one the session started in — showing the old repo after the
+  push would misreport what's on screen. It updates on push and on
+  pop, the same as any other chrome value that depends on the current
+  frame.
 
 **The constraint this runs into, stated plainly:** a `Store` is opened
 against exactly one repository, and the engine mints `repo-id`s but
@@ -361,9 +454,10 @@ this order:
    and full timestamp appear only for the row under the cursor, in a
    one-line detail strip beneath the list).
 3. **The hint bar degrades to a `?` affordance** — at 80 columns there
-   is no room for a labeled action list, so the bottom bar shows only
-   the highest-priority key or two (typically `enter` and `esc`) plus
-   `?` for the full list as an overlay.
+   is no room for the full labeled action list, so the bottom bar
+   shows only the highest-priority action or two (typically `enter`
+   and `esc`), each with a short label, plus `?` for the full list as
+   an overlay.
 4. **Below 60 columns**, the shell renders a deliberate "terminal too
    small" message instead of attempting to lay out any screen —
    `WRTN-9` implements the threshold check; 60 is the number this
@@ -372,23 +466,27 @@ this order:
 
 An inbox row at exactly 80 columns (display width — box-drawing
 characters count as one cell each, the same as any other), after
-every collapse above has applied:
+every collapse above has applied, and budgeting the id column against
+the same 7-character hex short form used above (not a sequential
+number writ cannot mint):
 
 ```text
 ┌ written · writ ─────────────────────────────────────────────────── ⟳ synced ─┐
-│ > RFX #142  fix: race in sync cursor advance                      3d  +2  jm │
-│   ISS #88   panic on empty diff hunk                              1w       k │
-│   RFX #139  docs: identifiers short-form examples                 2d  +1  jm │
+│ > RFX a1c92f0  fix: race in sync cursor advance                   3d  +2  jm │
+│   ISS 9f0e2b7  panic on empty diff hunk                           1w       k │
+│   RFX 5b7ad31  docs: identifiers short-form examples              2d  +1  jm │
 │                                                                              │
-│ RFX #142 · fix: race in sync cursor advance · assigned, unread               │
+│ RFX a1c92f0 · fix: race in sync cursor advance · assigned, unread            │
 └──────────────────────────────────────────────────────────────────────────────┘
   enter: open  ?: help
 ```
 
 The hint bar has no `esc` here on purpose: Inbox is the stack's root
 in this scene, so there's nothing below it to pop (`## Navigation
-model`) — a screen reached via a push or a jump that isn't currently
-the root shows `esc` in its place.
+model`) — a screen reached via a push, once it isn't the root, shows
+`esc` in its place. A screen reached via a jump is always the new
+root by definition (`## Navigation model`'s stack-reset rule) and
+never shows `esc` right after landing.
 
 ## Unhappy states at this level
 
@@ -408,9 +506,9 @@ screen (the per-screen unhappy states are `WRTN-19`, `WRTN-20`, and
   `Identity` with `PersonID == ""` and a non-nil `PersonIDErr` — no
   `writ.personId` configured, no usable `user.email` to fall back to,
   or a malformed value that `DerivePersonID` refuses to guess at
-  (`engine/identity`). Every `Assignee` filter the inbox runs
-  (`## Home is the inbox`) would compare against that empty id, so all
-  three inbox queries return nothing — a result indistinguishable from
+  (`engine/identity`). Every `Assignee` and `Author` filter the inbox
+  runs (`## Home is the inbox`) would compare against that empty id,
+  so every inbox query returns nothing — a result indistinguishable from
   a caught-up identity with nothing outstanding unless the shell
   checks first. Written checks `PersonIDErr` before running any inbox
   query; if it's set, the shell shows an explicit "identity not
