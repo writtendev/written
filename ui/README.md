@@ -139,7 +139,14 @@ decided separately.
 ## Layout
 
 - **`src/`** is what ships. It is the only directory a consumer's
-  `@source` points at.
+  `@source` points at. Every module here must be import-time pure — no
+  code that runs a side effect merely by being imported (registering a
+  listener, mutating a module-level singleton, logging on load).
+  `package.json`'s `sideEffects: ["**/*.css"]` tells a consumer's bundler
+  that anything outside a `.css` file is safe to drop if nothing imports
+  it; a component that violates this can be silently tree-shaken out of a
+  consumer's production bundle on an otherwise green build, with no error
+  anywhere in the chain.
 - **`dev/`** is a local dev harness (entry point, root `App`, `index.css`)
   for building and previewing what's in `src/` in isolation. It ships to
   nobody. `index.html` lives here too — Vite's `root` points at `dev/` —
@@ -147,6 +154,8 @@ decided separately.
   confines Tailwind's automatic source detection to `dev/`, so
   `dev/index.css` adds `@source '../src'` to pull `src/` into the
   harness's own build.
+- **`scripts/`** holds gate scripts run by `make check-ts`
+  (`check-exports.mjs` — see `## Exports` above). It ships to nobody.
 - **`src/tokens.css`** is the design system: a single `@theme static`
   block of CSS custom properties for color, type, spacing, and radii.
   See `## Exports` above for how a consumer reaches it and the two-halves
@@ -158,8 +167,9 @@ From the monorepo root:
 
 ```sh
 npm run dev -w @writtendev/ui   # dev harness at http://localhost:5173
-make check                      # lint, format, typecheck, and build the
-                                 # harness — the gate this package is held to
+make check                      # lint, format, typecheck, check the
+                                 # exports map, and build the harness —
+                                 # the gate this package is held to
 ```
 
 Fixing formatting locally: `npm run format` (root).

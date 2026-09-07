@@ -3,8 +3,15 @@
 // resolves through Node's *real* module resolver — not a re-implementation
 // of it — to a file that exists and lands inside `files`, and that the
 // lockfile's recorded version for this workspace matches package.json's
-// `version`. Runs as a step of `make check-ts`, before `build:harness`, so a
-// broken map reports as a map error rather than a Vite resolve failure.
+// `version`. Runs as a step of `make check-ts`, before `build:harness`
+// (ui's own harness build), so a broken map reports there as a map error
+// rather than a Vite resolve failure. That ordering guarantee is scoped to
+// `build:harness`: `check-ts` depends on `build-ts`, which already runs
+// web's `vite build` before this script does — so once web/ imports
+// `@writtendev/ui`, a broken map can surface there first, as a Vite
+// resolve failure instead. Either way this gate still fails closed; only
+// which error a contributor sees first changes. See the Makefile's
+// `check-ts` comment for the full ordering.
 //
 // What this does NOT assert (see AGENTS.md's `## Dispatch` section and
 // WRTN-37's ticket plan for the full reasoning):
