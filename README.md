@@ -31,8 +31,10 @@ your local git repository with zero network latency.
 
 - Go 1.25+
 - Git 2.40+
-- Node 22+ — needed for `make check` and `make build-ts` regardless of what
-  changed, not only when working on `ui/` or `web/` directly.
+- Node 22.18+ — needed for `make check` and `make build-ts` regardless of
+  what changed, not only when working on `ui/` or `web/` directly.
+  `check-tokens.mjs` imports a `.ts` module directly, which needs Node's
+  unflagged type stripping.
 - [golangci-lint](https://golangci-lint.run) v1.64.8 (the exact version CI pins; required by `make check`'s lint step)
 
 ### Building from Source

@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Workspace root for written's TypeScript half (ui, web). The Go module at the repo root is unrelated to npm and is built and tested through the Makefile.",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.18"
   },
   "workspaces": [
     "ui",
