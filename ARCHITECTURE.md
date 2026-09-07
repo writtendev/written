@@ -120,10 +120,16 @@ any of the adopted libraries yet, so running `go get` for all five now
 would land them marked `// indirect` (nothing imports them) alongside
 roughly two dozen further transitive `// indirect` lines — the opposite of
 "reflects the adopted set and nothing else" — and the very next `go mod
-tidy` would delete the entire `require` block again, restoring `go.mod` to
-its current three lines. It would also silently raise the `go` directive
-from `1.25.0` to `1.25.8` on account of a dependency nothing uses yet. So
-this table, not `go.mod`, is the durable record of the decision: each
+tidy` would delete the entire `require` block again, shrinking `go.mod`
+back to three lines. What it would not undo is the `go` directive: `go
+get` raises it from `1.25.0` to `1.25.8` on account of glamour/v2's own
+floor, and `go mod tidy` never lowers a `go` directive once raised
+(reproduced end to end in a scratch module — `tidy` strips the `require`
+block but leaves `go 1.25.8` behind). The one cost of a premature `go get`
+that actually persists is exactly the one `tidy` cannot clean up, against
+a `README.md` that promises "Go 1.25+" — a better argument for deferring
+than a clean revert would have been. So this table, not `go.mod`, is the
+durable record of the decision: each
 library enters `go.mod` at first import, pinned at the version recorded
 here — bubbletea, lipgloss, and bubbles in WRTN-9; glamour and chroma when
 the markdown renderer and diff viewer land.
