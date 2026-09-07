@@ -80,6 +80,12 @@ const distAssetsDir = path.join(uiRoot, 'dist', 'assets')
 
 const errors = []
 
+// Populated by check 5 below with the reset namespaces it actually found
+// and checked, so the success line can name them instead of asserting
+// blanket coverage — see that check's comment for why its coverage
+// follows whatever resets exist in tokens.css.
+let coveredResetNamespaces = []
+
 const tokensSource = readFileSync(tokensPath, 'utf8')
 const strippedTokens = stripComments(tokensSource)
 const declaredNames = parseTokenNames(tokensSource)
@@ -185,6 +191,7 @@ if (!existsSync(distAssetsDir)) {
       const resetNamespaces = [
         ...strippedTokens.matchAll(/^[ \t]*--([a-z0-9-]+)-\*\s*:\s*initial\s*;/gim),
       ].map((m) => m[1])
+      coveredResetNamespaces = resetNamespaces
 
       for (const namespace of resetNamespaces) {
         const prefix = `--${namespace}-`
@@ -206,4 +213,12 @@ if (errors.length > 0) {
   process.exit(1)
 }
 
-console.log(`ui/scripts/check-tokens.mjs: ${declaredNames.length} tokens OK`)
+const reverseCoverage =
+  coveredResetNamespaces.length > 0
+    ? coveredResetNamespaces.map((n) => `--${n}-*`).join(', ')
+    : '(none — no "-*: initial" resets found in tokens.css)'
+
+console.log(
+  `ui/scripts/check-tokens.mjs: ${declaredNames.length} tokens OK ` +
+    `(reverse check 5 covered: ${reverseCoverage})`,
+)

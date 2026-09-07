@@ -28,7 +28,13 @@ function scaleLength(value: string, multiplier: number): string {
   const match = /^(-?[\d.]+)([a-z%]*)$/i.exec(value)
   if (!match) return `${value} × ${multiplier}`
   const [, amount, unit] = match
-  return `${parseFloat(amount) * multiplier}${unit}`
+  const scaled = parseFloat(amount) * multiplier
+  // Round off IEEE-754 noise (0.3 * 3 === 0.8999999999999999) before
+  // printing — this only affects the label text. The bar's own width
+  // still comes from `calc(var(--spacing) * n)` in SpacingBar below, so
+  // the rendered size stays exact regardless of how this is formatted.
+  const rounded = Math.round(scaled * 1e6) / 1e6
+  return `${rounded}${unit}`
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
