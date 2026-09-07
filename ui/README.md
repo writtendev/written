@@ -279,9 +279,13 @@ registry credentials only a human holds.
   `dev/index.css` adds `@source '../src'` to pull `src/` into the
   harness's own build. The harness's only page is `dev/Specimen.tsx` — see
   `## Specimen page` below.
-- **`scripts/`** holds gate scripts run by `make check-ts`
-  (`check-exports.mjs` — see `## Exports` above; `check-tokens.mjs` — see
-  `## Specimen page` below). It ships to nobody.
+- **`scripts/`** ships to nobody. Most of it is gate scripts run by
+  `make check-ts` (`check-exports.mjs` — see `## Exports` above;
+  `check-tokens.mjs` — see `## Specimen page` below). As of WRTN-44 it
+  also holds `check-release-tag.mjs`, which `make check-ui-release` runs
+  instead — deliberately not part of `check-ts`, since the `TAG` it checks
+  only exists at release time. See `ARCHITECTURE.md`'s Publishing
+  paragraph.
 - **`src/tokens.css`** is the design system: a single `@theme static`
   block of CSS custom properties for color, type, spacing, and radii.
   See `## Exports` above for how a consumer reaches it and the two-halves

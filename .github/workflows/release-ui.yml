@@ -27,6 +27,27 @@ jobs:
           # origin/main, not just the tagged commit.
           fetch-depth: 0
 
+      # Release policy, not build/lint/test/typecheck, so this is
+      # legitimately outside a Makefile target — the same carve-out
+      # ci.yml's fan-in job already sits in (see AGENTS.md's `## Dispatch`
+      # pipeline-integrity invariant). A tag pushed from a commit that was
+      # never merged to main must not publish.
+      #
+      # Runs before any dependency install (npm ci below) so an untrusted
+      # tag fails before its lockfile's install-lifecycle scripts ever run.
+      #
+      # This guard is advisory, not a security control: GitHub evaluates
+      # the workflow definition *from the tagged commit itself*, so a
+      # commit that deletes or neuters this step runs without it. It only
+      # catches the accidental case (a stray tag on an unmerged branch),
+      # not a deliberate one. The real control — a GitHub tag ruleset on
+      # `refs/tags/ui/v*` and/or a protected Environment gating this job's
+      # `NPM_TOKEN` — is out-of-tree repository configuration and remains
+      # an outstanding human step (see ARCHITECTURE.md's Publishing
+      # paragraph and the PR description).
+      - name: verify tagged commit is on main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -36,14 +57,6 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - run: npm ci
-
-      # Release policy, not build/lint/test/typecheck, so this is
-      # legitimately outside a Makefile target — the same carve-out
-      # ci.yml's fan-in job already sits in (see AGENTS.md's `## Dispatch`
-      # pipeline-integrity invariant). A tag pushed from a commit that was
-      # never merged to main must not publish.
-      - name: verify tagged commit is on main
-        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
 
       # The whole TypeScript gate, plus the tag<->version<->lockfile check.
       # .nvmrc pins Node 22.18, whose bundled npm 10.x already supports

@@ -3,8 +3,8 @@
 // before `release-ui.yml` runs `npm publish` against it. Takes the tag from
 // process.argv[2] or $RELEASE_TAG (the Makefile passes it as `TAG=`, which
 // becomes the first positional arg to this script). Asserts:
-//   - the tag has the shape `ui/v<semver>`;
-//   - `<semver>` equals ui/package.json's `version`;
+//   - the tag has the shape `ui/vX.Y.Z` (plain semver only — see below);
+//   - `X.Y.Z` equals ui/package.json's `version`;
 //   - package-lock.json's `packages.ui.version` equals it too — belt and
 //     braces with check-exports.mjs, which already checks manifest-vs-lock
 //     drift on every `make check-ts` run; this script re-checks it here
@@ -22,6 +22,15 @@
 //     release. That is the seventh `ui/`-scoped review invariant in
 //     AGENTS.md, a human call made at review time, not something a script
 //     can determine from the tree alone.
+//
+// Deliberately rejects prerelease and build-metadata tags (`ui/v0.3.0-rc.1`,
+// `ui/v0.3.0+abc`), not just malformed ones: release-ui.yml's `npm publish`
+// step passes no `--tag`, so npm would publish any accepted version straight
+// to the `latest` dist-tag — a prerelease published that way would install
+// for every downstream consumer as if it were the release. CONTRIBUTING.md's
+// `## Tagging` documents exactly one shape, `ui/vX.Y.Z`, so this only
+// accepts what's documented rather than growing `--tag` handling this
+// ticket didn't ask for.
 
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -36,10 +45,13 @@ const tag = process.argv[2] || process.env.RELEASE_TAG || ''
 
 const errors = []
 
-const tagMatch = /^ui\/v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$/.exec(tag)
+const tagMatch = /^ui\/v(\d+\.\d+\.\d+)$/.exec(tag)
 
 if (!tagMatch) {
-  errors.push(`tag "${tag}" does not match the required shape "ui/v<semver>" (e.g. "ui/v0.2.0")`)
+  errors.push(
+    `tag "${tag}" does not match the required shape "ui/vX.Y.Z" (e.g. "ui/v0.2.0"); ` +
+      `prerelease and build-metadata suffixes are rejected because npm publish is given no --tag`,
+  )
 } else {
   const tagVersion = tagMatch[1]
 
