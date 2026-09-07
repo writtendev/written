@@ -153,22 +153,56 @@ decided separately.
   because it exists only to boot the harness. That same `root` also
   confines Tailwind's automatic source detection to `dev/`, so
   `dev/index.css` adds `@source '../src'` to pull `src/` into the
-  harness's own build.
+  harness's own build. The harness's only page is `dev/Specimen.tsx` — see
+  `## Specimen page` below.
 - **`scripts/`** holds gate scripts run by `make check-ts`
-  (`check-exports.mjs` — see `## Exports` above). It ships to nobody.
+  (`check-exports.mjs` — see `## Exports` above; `check-tokens.mjs` — see
+  `## Specimen page` below). It ships to nobody.
 - **`src/tokens.css`** is the design system: a single `@theme static`
   block of CSS custom properties for color, type, spacing, and radii.
   See `## Exports` above for how a consumer reaches it and the two-halves
   consumption pattern (`dev/index.css` does exactly that for the harness).
+
+## Specimen page
+
+`ui/dev/Specimen.tsx` is the dev harness's only page: the living style
+guide for `tokens.css` — color swatches, the type ramp (all three
+families and all seven sizes), the spacing scale, the radii. This is the
+reason there is no Storybook here; Storybook stays out of scope until
+there are external consumers, and until then this page is how anyone sees
+what the design system currently is.
+
+It reads from `tokens.css`, never duplicates it. Token _names_ come from a
+`?raw` import of `../src/tokens.css`, parsed by `ui/dev/tokens.ts` (the
+one place that parsing regex lives — both the page and the gate below
+import it, so there is exactly one implementation to keep correct). Every
+_value_ comes from the live cascade — `var(--name)` for what's rendered,
+`getComputedStyle(document.documentElement)` for what's printed next to
+it. Changing a value in `tokens.css`, or adding a token, changes the page
+with no other edit; deleting one removes its row, which is the page's
+compensating control for the one thing the gate below cannot check (see
+its own header comment).
+
+`ui/scripts/check-tokens.mjs` is the build-time backstop, run by
+`make check-ts` right after `build:harness` produces a fresh `ui/dist`. It
+cross-checks `tokens.css` against that built stylesheet in both
+directions: every name `tokens.css` declares must appear in the built
+`:root, :host` block, and — the harder direction — every name the build
+emits inside a `--color-*`/`--text-*`/`--radius-*` reset namespace must
+trace back to a declaration the shared parser actually found. It
+hardcodes no token names of its own; see the script's header for exactly
+what it does and does not catch.
 
 ## Development
 
 From the monorepo root:
 
 ```sh
-npm run dev -w @writtendev/ui   # dev harness at http://localhost:5173
+npm run dev -w @writtendev/ui   # dev harness at http://localhost:5173 —
+                                 # opens on the specimen page
 make check                      # lint, format, typecheck, check the
-                                 # exports map, and build the harness —
+                                 # exports map, build the harness, and
+                                 # cross-check tokens.css against it —
                                  # the gate this package is held to
 ```
 

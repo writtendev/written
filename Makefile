@@ -139,6 +139,12 @@ check-go: check-go-packages test race lint
 # rather than an error, so that specific mistake has no gate today. See
 # ui/package.json's `build:harness` script and AGENTS.md's `## Dispatch`
 # section.
+#
+# ui/scripts/check-tokens.mjs runs last, after build:harness, because it
+# reads ui/dist — the harness's just-built stylesheet — and cross-checks it
+# against ui/src/tokens.css in both directions (see that script's header).
+# It needs a fresh build, not build-ts's: build-ts builds web/, not ui's own
+# harness.
 check-ts: build-ts
 	@# `npm ci` is CI's real gate (its lock-vs-manifest check), and it isn't
 	@# a Makefile target — see AGENTS.md's `## Dispatch` section. `--dry-run`
@@ -152,6 +158,7 @@ check-ts: build-ts
 	npm run format:check
 	node ui/scripts/check-exports.mjs
 	npm run build:harness -w @writtendev/ui
+	node ui/scripts/check-tokens.mjs
 
 check: check-go check-ts
 

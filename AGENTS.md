@@ -119,8 +119,17 @@ guess.
   `@source '../src'` wiring through a real `tsc`+`vite` build, so it fails
   on anything that breaks the build, but Tailwind resolves an unmatched
   `@source` glob to zero classes rather than an error — a typo'd path still
-  builds clean, so that specific mistake has no gate yet. All of this must
-  pass locally before any push, by an implementer, a fixer, or a human. CI
+  builds clean, so that specific mistake has no gate yet.
+  `ui/scripts/check-tokens.mjs` runs last, right after `build:harness`, and
+  cross-checks `ui/src/tokens.css` against that fresh build's stylesheet in
+  both directions — every token `tokens.css` declares must reach the built
+  `:root, :host` block, and (the harder direction) every name the build
+  emits in a reset namespace (`--color-*`, `--text-*`, `--radius-*`) must
+  trace back to a declaration `tokens.css`'s own parser found — so the
+  specimen page (`ui/dev/Specimen.tsx`, `WRTN-38`) and `tokens.css` cannot
+  silently drift apart. It hardcodes no token names of its own. All of this
+  must pass locally before any push, by an implementer, a fixer, or a
+  human. CI
   runs the same Makefile
   targets rather than enumerating its own list: the path-filtered `go` job
   runs `make check-go`, the path-filtered `ts` job runs `make check-ts`
