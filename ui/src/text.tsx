@@ -83,16 +83,22 @@ export type TextProps = HTMLAttributes<HTMLElement> & {
 export function Text({
   as = 'p',
   size = 'base',
-  family = 'sans',
+  family,
   weight = 'regular',
   tone = 'default',
   className,
   ...props
 }: TextProps) {
+  // `family`'s default tracks `as` rather than being a flat 'sans': the
+  // `font-sans` utility beats preflight's base-layer <code> rule, so an
+  // `as="code"` left at a flat default would render in a proportional
+  // font despite looking like it should inherit monospace from the tag.
+  // An explicit `family` prop still wins over this derived default.
+  const resolvedFamily = family ?? (as === 'code' ? 'mono' : 'sans')
   return createElement(as, {
     className: cn(
       sizeClasses[size],
-      familyClasses[family],
+      familyClasses[resolvedFamily],
       weightClasses[weight],
       toneClasses[tone],
       className,

@@ -196,10 +196,14 @@ arbitrary-value utility (any `utility-[...]` bracket, not only a
 pixel/rem/em one), or an inline `style` prop. It is a set of pattern
 matches, not data-flow analysis, so it does not cover every conceivable
 route to a dynamically assembled class name — a class built through
-`Array.prototype.reduce`, `String.prototype.slice`/`padStart`/`padEnd`,
-or a helper function defined elsewhere that does the assembly for a
-caller here would all still pass clean; widen the rule set the same way
-if one of those is ever demonstrated in this package. Nor does it assert
+`Array.prototype.reduce`, `String.prototype.slice`/`padStart`/`padEnd`, or
+computed property access into a dynamically-named object key would all
+still pass clean; widen the rule set the same way if one of those is ever
+demonstrated in this package. Moving the assembly into a helper function
+does not itself evade the gate — the `ui/src/**/*.{ts,tsx}` scope covers
+every file in the package, not only the caller, so a helper elsewhere in
+`ui/src` doing `'bg-' + variant` is caught exactly as if it were written
+inline. Nor does it assert
 that a class name is a _real_ Tailwind utility — a typo'd `bg-acccent` is
 a literal string and passes clean, the same documented gap as a typo'd
 `@source` above.
