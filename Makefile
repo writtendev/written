@@ -122,7 +122,17 @@ check-go: check-go-packages test race lint
 # the steps below), so a fresh clone sees the "run npm ci" message rather
 # than build-ts's own failure. `--max-warnings 0` and `format:check` are
 # what make eslint/prettier warnings a hard failure instead of a quiet
-# pass; `build:harness` runs `ui`'s dev harness (and its `@source '../src'`
+# pass; `check-exports.mjs` resolves `ui`'s `exports` map through Node's
+# real resolver before `build:harness` (ui's own harness build, below)
+# runs, so a broken map reports there as a map error rather than a Vite
+# resolve failure — see ui/scripts/check-exports.mjs for exactly what it
+# asserts and does not. That ordering guarantee is scoped to
+# `build:harness`: `build-ts` above is a prerequisite of this target and
+# already runs web's `vite build` before this recipe starts, so once
+# web/ imports `@writtendev/ui` a broken map can surface there first, as
+# a Vite resolve failure — this gate still fails closed either way, just
+# not always with the friendlier message.
+# `build:harness` runs `ui`'s dev harness (and its `@source '../src'`
 # Tailwind wiring) through a real `tsc`+`vite` build, so it fails on
 # anything that breaks that build — but not on a typo'd `@source` path by
 # itself: Tailwind resolves an unmatched `@source` glob to zero classes
@@ -140,6 +150,7 @@ check-ts: build-ts
 	npm run typecheck --workspaces --if-present
 	npm run lint
 	npm run format:check
+	node ui/scripts/check-exports.mjs
 	npm run build:harness -w @writtendev/ui
 
 check: check-go check-ts
