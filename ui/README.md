@@ -52,7 +52,7 @@ presentational consumer has no use for — a separate subpath keeps those
 out of the root barrel.
 
 There are no per-component subpaths and no wildcard keys. The component
-surface is capped at three (see the review invariants below), so one
+surface is capped at three (see the review invariants above), so one
 barrel answers "what does this package export" by reading one file; a
 wildcard would silently reopen every file under `src/` as a public import
 path, which is what the gate exists to prevent.
