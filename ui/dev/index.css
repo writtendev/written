@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import '../src/tokens.css';
 
 /* Vite's `root: 'dev'` (see vite.config.ts) confines Tailwind v4's
    automatic source detection to `dev/`. `src/` is what ships and what
