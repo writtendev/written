@@ -1,4 +1,4 @@
-import type { ComponentPropsWithoutRef } from 'react'
+import type { ComponentProps } from 'react'
 import { cn } from './cn'
 
 // Solid fills, not tinted washes. WRTN-36 measured that a pale accent
@@ -21,7 +21,10 @@ const baseClasses =
 
 export type BadgeTone = keyof typeof toneClasses
 
-export type BadgeProps = ComponentPropsWithoutRef<'span'> & {
+// `ComponentProps`, not `ComponentPropsWithoutRef` — see button.tsx's
+// ButtonProps comment; same React 19 ref reasoning, applied consistently
+// across all three components.
+export type BadgeProps = ComponentProps<'span'> & {
   tone?: BadgeTone
 }
 

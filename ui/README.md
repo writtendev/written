@@ -144,10 +144,17 @@ whole literal class string:
 ```ts
 const variantClasses = {
   primary: 'bg-accent text-ink-inverse hover:bg-accent-hover',
-  secondary: 'border border-line bg-ground-raised text-ink hover:bg-ground-sunken',
+  secondary: 'border border-line-interactive bg-ground-raised text-ink hover:bg-ground-sunken',
   ghost: 'bg-transparent text-ink hover:bg-ground-sunken',
 } as const
 ```
+
+`secondary`'s border uses `--color-line-interactive`, not the plain
+`--color-line`/`--color-line-strong` rule tokens — the plain `line` token
+lands at 1.26:1 against `--color-ground`, short of WCAG 1.4.11's 3:1
+non-text minimum for a component that reads as a control by its border
+alone. See `button.tsx`'s comment on `secondary` and `tokens.css`'s
+comment on the token for the contrast figures.
 
 …selected by key and joined by `ui/src/cn.ts`, a three-line helper that
 filters and joins whole strings — it never assembles a class from

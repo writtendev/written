@@ -1,4 +1,4 @@
-import type { ComponentPropsWithoutRef } from 'react'
+import type { ComponentProps } from 'react'
 import { cn } from './cn'
 
 // Variant classes are whole literal strings, selected by key — never
@@ -36,13 +36,28 @@ const sizeClasses = {
 // this file ships as source, and a Tailwind build scanning it as source
 // would pick up an unused pairing mentioned only in prose — see
 // ui/README.md's `## Components` section.)
+// `outline-hidden`, not `outline-none`, for the focus ring: under
+// `forced-colors: active` (Windows High Contrast Mode) box-shadow is
+// stripped, so the box-shadow-only `ring-2` disappears there and the
+// outline is the only focus indicator left standing. `outline-none` sets
+// `outline-style: none`, which removes it entirely; `outline-hidden` is
+// Tailwind v4's utility for precisely this case — it keeps a transparent
+// outline in normal rendering (so it's visually silent alongside the
+// ring) but leaves `outline-style` alone, so forced-colors mode repaints
+// it with the system's focus color instead of having nothing to repaint.
+// Verified against this repo's tailwindcss@4.3.3 build output.
 const baseClasses =
-  'inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-50'
+  'inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-50'
 
 export type ButtonVariant = keyof typeof variantClasses
 export type ButtonSize = keyof typeof sizeClasses
 
-export type ButtonProps = ComponentPropsWithoutRef<'button'> & {
+// `ComponentProps`, not `ComponentPropsWithoutRef`: under React 19, ref is
+// an ordinary prop rather than something `forwardRef` strips out, and
+// `ComponentProps<'button'>` (unlike the WithoutRef variant) includes it —
+// so `<Button ref={...}>` typechecks, and the ref lands on the underlying
+// <button> because `{...props}` below spreads it straight through.
+export type ButtonProps = ComponentProps<'button'> & {
   variant?: ButtonVariant
   size?: ButtonSize
 }

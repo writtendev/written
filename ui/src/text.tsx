@@ -1,13 +1,23 @@
-import { createElement, type HTMLAttributes } from 'react'
+import { createElement, type HTMLAttributes, type Ref } from 'react'
 import { cn } from './cn'
 
 // `as` is a closed union of intrinsic tags, not generic polymorphism —
 // React.createElement(as, …) with HTMLAttributes<HTMLElement> typechecks
 // cleanly and needs no generic component, no ElementType, no
-// ComponentPropsWithoutRef<T> gymnastics. A nine-tag union covers
+// ComponentPropsWithoutRef<T> gymnastics. An eight-tag union covers
 // everything a review tool renders; see ui/README.md's `## Components`
 // section for the full reasoning.
-export type TextTag = 'h1' | 'h2' | 'h3' | 'h4' | 'p' | 'span' | 'div' | 'code' | 'label'
+//
+// No `'label'`: an explicitly-associated form `<label for>` needs
+// `htmlFor`, which isn't on `HTMLAttributes` (it's `LabelHTMLAttributes`)
+// — giving every `as` variant an `htmlFor` prop would let it appear on a
+// `<div>` just as much as a `<label>`, and a per-tag discriminated union
+// is exactly the generic-polymorphism machinery the plain
+// `HTMLAttributes<HTMLElement>` approach above exists to avoid. A tag the
+// primitive cannot properly support is worse than not offering it; the
+// day a real `<label>` is needed, it's an ordinary native element, not a
+// `<Text as="label">`.
+export type TextTag = 'h1' | 'h2' | 'h3' | 'h4' | 'p' | 'span' | 'div' | 'code'
 
 // Semantics (`as`: what the document says) and scale (`size`: what it
 // looks like) are independent on purpose — an <h3> at text-lg is a
@@ -53,7 +63,14 @@ export type TextFamily = keyof typeof familyClasses
 export type TextWeight = keyof typeof weightClasses
 export type TextTone = keyof typeof toneClasses
 
+// `HTMLAttributes<HTMLElement>` carries no `ref` (unlike
+// `ComponentProps<'tag'>` — see button.tsx and badge.tsx), because there
+// is no single element type to point it at while `as` is a union: added
+// explicitly here, consistent with the other two components' React 19
+// ref reasoning, typed against the same `HTMLElement` every `as` variant
+// shares.
 export type TextProps = HTMLAttributes<HTMLElement> & {
+  ref?: Ref<HTMLElement>
   as?: TextTag
   size?: TextSize
   family?: TextFamily
