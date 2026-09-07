@@ -108,7 +108,7 @@ guess.
   `ui/scripts/check-exports.mjs` (resolves every specifier `ui`'s `exports`
   map advertises through Node's real resolver, and checks the lockfile's
   recorded version for `ui` against `ui/package.json`'s — see
-  `ui/README.md` and the seventh review invariant below), and — via
+  `ui/README.md` and the seventh `ui/`-scoped review invariant below), and — via
   `check-ts`'s dependency on `build-ts` — the `vite build` that produces
   `web`'s embedded bundle. `ui` is `buildless: true` (see `## Layout`), so
   `build-ts` does not touch it; `check-ts` instead runs `ui`'s own

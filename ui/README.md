@@ -41,10 +41,15 @@ version.
 | `@writtendev/ui/tokens.css`   | `./src/tokens.css` | The design system, for a CSS `@import` |
 | `@writtendev/ui/package.json` | `./package.json`   | Tooling that reads package metadata    |
 
-`@writtendev/ui/api` is **reserved**, by name, for the typed API client
-(WRTN-40). It is not a live entry yet — pointing an entry at a file that
-doesn't exist is exactly the "export map that lies" this gate rejects, so
-the slot is documented here rather than added early.
+`@writtendev/ui/api` → `./src/api/index.ts` is **reserved**, by name and
+target, for the typed API client (WRTN-40). It is not a live entry yet —
+pointing an entry at a file that doesn't exist is exactly the "export map
+that lies" this gate rejects, so the slot is documented here rather than
+added early; WRTN-40 adds the entry and the module together. It is a
+subpath rather than folded into the root barrel because the API client
+pulls in fetch plumbing and request/response types a purely
+presentational consumer has no use for — a separate subpath keeps those
+out of the root barrel.
 
 There are no per-component subpaths and no wildcard keys. The component
 surface is capped at three (see the review invariants below), so one
