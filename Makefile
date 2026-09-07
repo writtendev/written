@@ -23,7 +23,7 @@ GOLANGCI_LINT_VERSION := v1.64.8
 # internals.
 GO_PACKAGES := ./cmd/... ./internal/...
 
-.PHONY: build build-ts test race lint check-go check-ts check install clean check-node-modules check-go-packages
+.PHONY: build build-ts test race lint check-go check-ts check-ui-release check install clean check-node-modules check-go-packages
 
 # GO_PACKAGES above is a hand-written allowlist, not a derivation, so it can
 # drift silently: a first-party Go package added anywhere else (e.g. a `.go`
@@ -163,6 +163,18 @@ check-ts: build-ts
 	node ui/scripts/check-tokens.mjs
 
 check: check-go check-ts
+
+# The gate release-ui.yml runs on a `ui/vX.Y.Z` tag push, before
+# `npm publish`. Depends on check-ts so a tag cannot publish a tree that
+# doesn't pass it, keeping `## Dispatch`'s pipeline-integrity invariant
+# holding for the release workflow the same way check-go/check-ts hold it
+# for ci.yml: the workflow's build/lint/typecheck coverage still resolves
+# to a Makefile target. `TAG` only exists at release time (the workflow
+# passes `$GITHUB_REF_NAME`), so this is deliberately not wired into
+# `check` — a target that no-ops without a TAG would be a gate that cannot
+# fail. See ui/scripts/check-release-tag.mjs for exactly what it asserts.
+check-ui-release: check-ts
+	node ui/scripts/check-release-tag.mjs "$(TAG)"
 
 install: ## Build and install written into Go's bin dir
 	@GOBIN="$$(go env GOBIN)"; \

@@ -225,7 +225,18 @@ breaks one of these is a major finding, not a nit.
   instead of failing — is equally a finding: a gate that cannot fail is not
   a gate. Prove either one the way a reviewer would: break the thing the
   gate is supposed to catch and confirm the command actually exits
-  non-zero.
+  non-zero. The same exemption covers `.github/workflows/release-ui.yml`'s
+  two steps with no Makefile counterpart — the `git merge-base
+  --is-ancestor` ancestry guard and the final `npm publish` call. Neither
+  builds, lints, tests, nor typechecks: the ancestry guard is release
+  policy (a pushed tag must trace to a commit already on `main`, not build
+  correctness), and `npm publish` is the distribution act itself, which
+  only runs after `make check-ui-release` has already covered the entire
+  gated build/lint/typecheck/tag-check surface for that tag. Neither step
+  has coverage of its own for `make check` (or `make check-ui-release`) to
+  drift from, which is exactly what keeps this a deliberate amendment to
+  the invariant rather than a hole in it — approved at WRTN-44's batch
+  gate for that reason.
 
 The following six, scoped to `ui/`, come from the `ui` package's own brief
 from when it was a standalone repo, and moved here verbatim with it in
@@ -252,10 +263,18 @@ from when it was a standalone repo, and moved here verbatim with it in
   `isLoggedIn`, or any other prop that encodes the caller's circumstances.
   Variation comes from composition, children, and render props. A
   component that has to know who is looking at it has the wrong shape.
-- **No component beyond `Button`, `Badge`, and one text/heading primitive
-  without an explicit decision.** A PR that adds a fourth component
-  without a ticket that says to is a finding, however reasonable the
-  component is on its own.
+- **No *new* component without a ticket that says to add it.** Today that
+  means `Button`, `Badge`, and one text/heading primitive; a PR that adds
+  a fourth without a ticket is a finding, however reasonable the
+  component is on its own. This gates what gets *built*, not what gets
+  shared: everything `ui/src` exports ships in the published package
+  (WRTN-44) and is usable by every consumer, and a fourth component is
+  equally shareable the moment a ticket calls for it. The rule exists
+  because components should be extracted from real screens once two
+  consumers want the same thing, not designed ahead of consumers that do
+  not exist yet. (Reworded at WRTN-44 — the prior wording read as a limit
+  on what the package *shares*, which it never was; the confusion surfaced
+  while approving that ticket.)
 
 The following, scoped to `ui/`, originates here in `WRTN-37`:
 

@@ -59,10 +59,17 @@ path, which is what the gate exists to prevent.
 
 ### Consuming this package
 
-The consumption story has two independent halves for the visual result,
-plus one TypeScript-only requirement below them. Getting the first two
-without each other produces a page that looks broken in a different way
-each time, so both are needed and neither substitutes for the other:
+An outside consumer installs the published package from npm:
+
+```sh
+npm i @writtendev/ui
+```
+
+From there, the consumption story has two independent halves for the
+visual result, plus one TypeScript-only requirement below them. Getting
+the first two without each other produces a page that looks broken in a
+different way each time, so both are needed and neither substitutes for
+the other:
 
 1. **`@import '@writtendev/ui/tokens.css'`** — goes through the `exports`
    map above. Pulls in the design system's CSS custom properties. This
@@ -80,6 +87,10 @@ each time, so both are needed and neither substitutes for the other:
    does **not** work in Tailwind 4 — it builds clean and generates zero
    classes, silently. An in-repo consumer should point at the workspace
    directory directly rather than through `node_modules`, as below.
+   Publishing this package to npm does not change any of this: `@source`
+   still walks the filesystem into `node_modules/@writtendev/ui/src`, never
+   through the `exports` map above, whether that directory got there via
+   `npm i` or workspace linking.
 
 The two consumers' `@source` lines differ in more than depth: the
 in-repo `web/` consumer points straight at the `ui/` workspace directory,
@@ -237,9 +248,17 @@ Whether a change _should_ have bumped the version is a review call, not
 something `make check` can determine on its own — see the repository's
 `AGENTS.md` `## Dispatch` → `### Review invariants`.
 
-This is not the npm publishing pipeline — `private: true` stays, and how
-this package is distributed to a consumer (vendored, workspace-linked) is
-decided separately.
+**Releasing a version, once it's bumped and merged:** a maintainer tags
+`ui/vX.Y.Z` (matching the version just merged into `ui/package.json`) and
+pushes it. `.github/workflows/release-ui.yml` picks up that push, re-runs
+`make check-ui-release` (the full TypeScript gate plus a check that the tag,
+`package.json`'s `version`, and the lockfile's recorded version all agree),
+and publishes the package to npm with provenance on — see `ARCHITECTURE.md`'s
+`**Publishing (WRTN-44)**` paragraph for the full ceremony. Bumping the
+version and tagging it are two different, deliberately separated acts: the
+version bump above ships in the same PR as the change it describes; the tag,
+and the publish it triggers, is a maintainer decision made afterward, with
+registry credentials only a human holds.
 
 ## Layout
 

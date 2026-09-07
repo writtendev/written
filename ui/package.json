@@ -1,8 +1,20 @@
 {
   "name": "@writtendev/ui",
   "version": "0.2.0",
-  "private": true,
-  "description": "Shared component package for written's web client. Ships as source: no build script, no publish step, consumed directly from src/ by web's bundler (see ARCHITECTURE.md).",
+  "private": false,
+  "description": "Shared component package for written's web client(s). Ships as source: no build script, published to npm as source and consumed directly from src/ by a consumer's bundler (see ARCHITECTURE.md).",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/writtendev/written.git",
+    "directory": "ui"
+  },
+  "homepage": "https://github.com/writtendev/written/tree/main/ui",
+  "bugs": "https://github.com/writtendev/written/issues",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "buildless": true,
   "type": "module",
   "exports": {
