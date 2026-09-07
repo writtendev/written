@@ -65,7 +65,9 @@ attention, defined against three engine queries, not a vibe:
 
 `me` resolves once per session via `identity.Load(ctx, repoDir)`
 (`engine/identity`), which is the person-id every `Assignee` filter
-above is compared against.
+above is compared against. That resolution can fail — see
+`## Unhappy states at this level` for what the shell does instead of
+running these three queries against an empty id.
 
 **Unassigned objects do not appear in the inbox.** An open review or
 issue with no assignee is surfaced through the review list and issue
@@ -78,17 +80,19 @@ is a product call for later, not a gap in this pass.
 
 **The empty inbox** — nothing assigned, nothing unread — is a fresh
 repo's first screen, so it says so plainly rather than rendering a
-blank list:
+blank list. Drawn at 120 columns, where `## The 80-column story`'s
+width table says the full top bar (repo, identity, sync state,
+current screen name) and a fully labeled hint bar both belong:
 
 ```text
-┌ written · writ · you@example ───────────────────────── ⟳ synced ─┐
-│                                                                  │
-│                         Inbox is empty.                          │
-│             Nothing assigned to you, nothing unread.             │
-│                                                                  │
-│        Press r for reviews, i for issues, or : to search.        │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
+┌ written · writ · you@example · Inbox ───────────────────────────────────────────────────────────────────── ⟳ synced ─┐
+│                                                                                                                      │
+│                                                    Inbox is empty.                                                   │
+│                                        Nothing assigned to you, nothing unread.                                      │
+│                                                                                                                      │
+│                                   Press r for reviews, i for issues, or : to search.                                 │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
   ?: help  r: reviews  i: issues  :: palette
 ```
 
@@ -104,6 +108,28 @@ in the current screen, sourced from the same keybinding table `WRTN-5`
 defines. Everything else — command palette, filter line, help overlay,
 comment composer — is summoned: it appears on demand and gives its
 space back.
+
+**Decision: the sync indicator is driven by `Store.Watch`, and a
+`Reset` never touches the stack.** `⟳ synced` reflects the shell's
+subscription to `store.Watch(ctx) <-chan Event`
+(`ARCHITECTURE.md` decision 2): it switches while a query triggered by
+an incoming event is in flight and back to `⟳ synced` once it settles.
+`EventCreated`/`EventChanged` name the object that changed, so a
+screen currently showing that object re-queries it — a per-screen
+concern, `WRTN-19`/`20`/`21`'s to design. `EventReset` is different in
+kind, not degree: per `engine/watch.go` it fires on a full rebuild, a
+chain rollback, or a subscriber's event buffer overflowing, and it
+carries no object id — everything the shell has queried may now be
+stale, all at once. What's shell-level, and settled here: a `Reset`
+does not pop, replace, or otherwise touch the screen stack. Every
+pushed frame stays exactly where it was and re-queries its own data
+the next time it's current (or immediately, if it's the top frame);
+a frame whose object is simply gone after the reset renders that
+screen's own not-found state, which is the same per-screen unhappy
+path a missing object already needs, not a new shell behavior. The
+stack surviving a reset unconditionally is the one thing this
+document needs to guarantee for `WRTN-9`; how each screen re-reads
+itself is not.
 
 **Rejected: a Crush-style permanent right sidebar.** Written's
 dominant content is a diff, and a diff spends screen width better than
@@ -137,6 +163,17 @@ stack has exactly one owner: the root model holds it, and "which
 screen is current" is always its top frame. This is the property
 `WRTN-9` implements against.
 
+**A jump resets the stack; it does not push onto it.** The palette and
+`g i`/`g r`/`g I` all replace the entire stack with a single frame at
+the destination screen, rather than stacking the destination on top of
+wherever you were. This keeps the jump case bounded — repeated jumps
+can't grow the stack, unlike a push would — and gives `esc` a
+well-defined answer right after one: there is nothing below the new
+root to pop, the same as `esc` at Inbox on a fresh launch. Escape
+*from the palette itself*, without picking anything, is the one
+exception: that returns to wherever you opened it, unchanged, because
+no jump happened.
+
 **Rejected: tabbed panes.** Tabs invite unbounded tab management (how
 many can be open, how do you close one, what happens when you open a
 review from an issue while three tabs are already open) and introduce
@@ -154,31 +191,39 @@ screen at a time, which is what narrow terminals need.
 ```text
   Inbox (home)
     │
-    ├─ activate a review row ──> Review list
+    ├─ activate a review row ──> Review detail
     │                              │
-    │                              ├─ activate a row ──> Review detail
-    │                              │                        │
-    │                              │                        └─ activate
-    │                              │                           diff ──>
-    │                              │                           Diff viewer
+    │                              ├─ activate diff ──> Diff viewer
     │                              │
     │                              └─ esc ──> back to Inbox
     │
-    └─ activate an issue row ──> Issue list
-                                   │
-                                   ├─ activate a row ──> Issue detail
+    └─ activate an issue row ──> Issue detail
                                    │
                                    └─ esc ──> back to Inbox
 
-  esc from any pushed screen pops exactly one level: Diff viewer ->
-  Review detail -> Review list -> Inbox (same shape on the issue
-  side). The root model's stack has exactly one owner, and its top
-  frame is always "which screen is current."
+  Review list and Issue list are not reached by activating an inbox
+  row — they're peer, directly-reachable screens (`r` / `i`, exact
+  bindings are `WRTN-5`'s call, or the palette), pushed on top of
+  whatever's current. Once there, activating a row pushes the same
+  detail screen the inbox does, one level deeper:
 
-  Command palette (:) — one global jump to any screen, at any depth,
-  bypassing the stack. Escape from the palette returns to wherever
-  you opened it, unchanged. g i / g r / g I jump directly to Inbox,
-  Review list, or Issue list without unwinding the stack first.
+    Review list ── activate a row ──> Review detail ──> Diff viewer
+    Issue list  ── activate a row ──> Issue detail
+
+  esc from any pushed screen pops exactly one level: Diff viewer ->
+  Review detail -> Inbox when reached from the inbox, or Diff viewer
+  -> Review detail -> Review list -> Inbox when reached via the list
+  (same shape on the issue side either way). The root model's stack
+  has exactly one owner, and its top frame is always "which screen is
+  current."
+
+  Command palette (:), g i, g r, and g I are jumps, not pushes: each
+  resets the stack to a single frame at the destination — Inbox,
+  Review list, or Issue list — discarding whatever was on the stack
+  before. A jump can't grow the stack, and esc right after one has
+  nothing below it to pop (see the navigation decision above). Escape
+  from the palette itself, without picking anything, returns to
+  wherever you opened it, unchanged — that's not a jump.
 ```
 
 ## Review detail and issue detail
@@ -186,39 +231,40 @@ screen at a time, which is what narrow terminals need.
 Both detail screens sit under the same top/bottom chrome as the inbox
 — description and status first, then the object-specific content, then
 its comment thread. A review detail's diff is one push further in
-(`enter` on the "view diff" line), not inlined into this screen.
+(`enter` on the "view diff" line), not inlined into this screen. Drawn
+at 120 columns, same as the empty inbox above, where the full top bar
+and a fully labeled hint bar are both correct per the width table:
 
 ```text
-┌ written · writ · you@example ─────────────────────────── ⟳ synced ─┐
-│ RFX #142 · fix: race in sync cursor advance      assigned          │
-│ opened by jm · 3 days ago · status: open                           │
-│                                                                    │
-│ The sync cursor advances before the projection commit              │
-│ lands, so a crash between the two leaves state.db                  │
-│ pointing past ops it never applied.                                │
-│                                                                    │
-│ > 3 files changed · view diff (enter)                              │
-│                                                                    │
-│ Threads (2)                                                        │
-│  km: does this need a lock around the cursor write too?            │
-│  jm: yes, added in the fixup - see diff                            │
-└────────────────────────────────────────────────────────────────────┘
+┌ written · writ · you@example · Review detail ───────────────────────────────────────────────────────────── ⟳ synced ─┐
+│ RFX #142 · fix: race in sync cursor advance                                                                 assigned │
+│ opened by jm · 3 days ago · status: open                                                                             │
+│                                                                                                                      │
+│ The sync cursor advances before the projection commit lands, so a crash between the two leaves                       │
+│ state.db pointing past ops it never applied.                                                                         │
+│                                                                                                                      │
+│ > 3 files changed · view diff (enter)                                                                                │
+│                                                                                                                      │
+│ Threads (2)                                                                                                          │
+│  km: does this need a lock around the cursor write too?                                                              │
+│  jm: yes, added in the fixup - see diff                                                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
   enter: view diff  c: comment  a: approve  esc: back  ?: help
 ```
 
 ```text
-┌ written · writ · you@example ─────────────────────────── ⟳ synced ─┐
-│ ISS #88 · panic on empty diff hunk                assigned         │
-│ opened by k · 1 week ago · state: in progress · priority: high     │
-│                                                                    │
-│ Loading a review with a zero-line hunk panics in the diff          │
-│ renderer instead of showing an empty context block.                │
-│                                                                    │
-│ Labels: bug, diff-viewer                                           │
-│                                                                    │
-│ Comments (1)                                                       │
-│  jm: repro'd - renderer assumes hunk.Lines is non-empty            │
-└────────────────────────────────────────────────────────────────────┘
+┌ written · writ · you@example · Issue detail ────────────────────────────────────────────────────────────── ⟳ synced ─┐
+│ ISS #88 · panic on empty diff hunk                                                                          assigned │
+│ opened by k · 1 week ago · state: in progress · priority: high                                                       │
+│                                                                                                                      │
+│ Loading a review with a zero-line hunk panics in the diff renderer instead of showing an empty                       │
+│ context block.                                                                                                       │
+│                                                                                                                      │
+│ Labels: bug, diff-viewer                                                                                             │
+│                                                                                                                      │
+│ Comments (1)                                                                                                         │
+│  jm: repro'd - renderer assumes hunk.Lines is non-empty                                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
   c: comment  s: change state  a: assign  esc: back  ?: help
 ```
 
@@ -256,9 +302,9 @@ offsetting one.
 ## Cross-repo
 
 Issues live in a workspace repo; reviews live with the code they
-review. `Store.Ref(objectID)` mints a fully-qualified
-`<repo-id>#<object-id>` reference, and `spec/identifiers.md` permits
-clients to display a shortened form (`writ#a1b2c3d`) while the
+review. `Store.Ref(objectID)` mints a `<repo-id>#<object-id>`
+reference when the local repo has a repo-id, and `spec/identifiers.md`
+permits clients to display a shortened form (`writ#a1b2c3d`) while the
 canonical reference stays full. The screen map's job is to decide what
 happens when one of these references appears on screen — not to design
 how it gets resolved.
@@ -274,6 +320,15 @@ how it gets resolved.
   isn't cloned) renders an explicit, honest "not resolvable locally"
   state in place of the object — never a dead string, and never a
   silent blank.
+- An unqualified reference — `Store.Ref` returns the bare object id,
+  with no repo half at all, when the local repo doesn't have a
+  repo-id yet (`engine/store.go`: `Ref` falls back to the bare
+  `objectID` whenever `localRepoID` is empty, which it is until
+  something mints one) — renders as that bare id, with no slug and no
+  `#`. It behaves like a same-repo reference for activation: the
+  object is local and known, it has simply not picked up a repo-id,
+  so this is neither the qualified case nor the unresolvable one
+  above.
 
 **The constraint this runs into, stated plainly:** a `Store` is opened
 against exactly one repository, and the engine mints `repo-id`s but
@@ -315,23 +370,29 @@ this order:
    document is choosing, since below it even a truncated single-column
    list stops being legible.
 
-An inbox row at exactly 80 columns, after every collapse above has
-applied:
+An inbox row at exactly 80 columns (display width — box-drawing
+characters count as one cell each, the same as any other), after
+every collapse above has applied:
 
 ```text
-┌ written · writ ───────────────────────────────────── ⟳ synced ─┐
-│ > RFX #142  fix: race in sync cursor advance        3d  +2  jm │
-│   ISS #88   panic on empty diff hunk                 1w      k │
-│   RFX #139  docs: identifiers short-form examples    2d  +1 jm │
-│                                                                │
-│ RFX #142 · fix: race in sync cursor advance · assigned, unread │
-└────────────────────────────────────────────────────────────────┘
-  enter: open  esc: back  ?: help
+┌ written · writ ─────────────────────────────────────────────────── ⟳ synced ─┐
+│ > RFX #142  fix: race in sync cursor advance                      3d  +2  jm │
+│   ISS #88   panic on empty diff hunk                              1w       k │
+│   RFX #139  docs: identifiers short-form examples                 2d  +1  jm │
+│                                                                              │
+│ RFX #142 · fix: race in sync cursor advance · assigned, unread               │
+└──────────────────────────────────────────────────────────────────────────────┘
+  enter: open  ?: help
 ```
+
+The hint bar has no `esc` here on purpose: Inbox is the stack's root
+in this scene, so there's nothing below it to pop (`## Navigation
+model`) — a screen reached via a push or a jump that isn't currently
+the root shows `esc` in its place.
 
 ## Unhappy states at this level
 
-Two conditions belong to the shell itself rather than to any one
+Three conditions belong to the shell itself rather than to any one
 screen (the per-screen unhappy states are `WRTN-19`, `WRTN-20`, and
 `WRTN-21`'s job):
 
@@ -343,6 +404,20 @@ screen (the per-screen unhappy states are `WRTN-19`, `WRTN-20`, and
   repository that has never run `writ init` shows a one-screen
   explanation and the command to fix it, not an empty inbox that looks
   like a working, unassigned state.
+- **An unresolvable identity.** `identity.Load` can return an
+  `Identity` with `PersonID == ""` and a non-nil `PersonIDErr` — no
+  `writ.personId` configured, no usable `user.email` to fall back to,
+  or a malformed value that `DerivePersonID` refuses to guess at
+  (`engine/identity`). Every `Assignee` filter the inbox runs
+  (`## Home is the inbox`) would compare against that empty id, so all
+  three inbox queries return nothing — a result indistinguishable from
+  a caught-up identity with nothing outstanding unless the shell
+  checks first. Written checks `PersonIDErr` before running any inbox
+  query; if it's set, the shell shows an explicit "identity not
+  configured" screen naming what's missing and the git config to set,
+  instead of the empty-inbox copy above. This is most likely to be
+  the very first screen anyone sees, which is exactly why it can't be
+  allowed to lie.
 
 ## Out of scope
 
@@ -351,3 +426,14 @@ threads (`WRTN-20`), issue grouping (`WRTN-21`), the keybinding
 grammar itself (`WRTN-5` — this document names the actions navigation
 needs, not the keys), palette and colors (`WRTN-6`), widget selection
 (`WRTN-7`), and any Go code (`WRTN-9`).
+
+Every specific key shown anywhere above — the hint bars, the
+empty-inbox body copy, `g i`/`g r`/`g I` — is an illustrative
+placeholder standing in for an action this document does name (open,
+back, comment, approve, assign, change state, search, help, jump to
+inbox/review-list/issue-list). None of it is a claim about a binding;
+`WRTN-5` owns the actual grammar and can assign different keys to
+every one of these without this document needing a rewrite. A
+wireframe has to show *something* typable to be legible, which is why
+the placeholders are there at all rather than left as bare
+descriptions.
