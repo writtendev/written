@@ -59,9 +59,10 @@ path, which is what the gate exists to prevent.
 
 ### Consuming this package
 
-The consumption story has two independent halves. Getting one without the
-other produces a page that looks broken in a different way each time, so
-both are needed and neither substitutes for the other:
+The consumption story has two independent halves for the visual result,
+plus one TypeScript-only requirement below them. Getting the first two
+without each other produces a page that looks broken in a different way
+each time, so both are needed and neither substitutes for the other:
 
 1. **`@import '@writtendev/ui/tokens.css'`** — goes through the `exports`
    map above. Pulls in the design system's CSS custom properties. This
@@ -102,6 +103,20 @@ while the outside consumer points into its own `node_modules` (where
 Failure modes, so a broken page is easy to place: `@import` alone gives
 tokens and no component classes; `@source` alone gives component classes
 referencing tokens that do not exist.
+
+**A TypeScript consumer also needs a JSX setting.** The root barrel
+(`@writtendev/ui`, resolving to `./src/index.ts`) re-exports `Button`,
+`Badge`, and `Text` straight from their `.tsx` source — there is no
+compiled `.js`/`.d.ts` output, per this package's "ships as source"
+framing above. `tsc` follows that barrel into the `.tsx` files while
+typechecking anything that imports from it, so a consumer's own
+`tsconfig.json` needs `"jsx": "react-jsx"` (or another `jsx` setting) even
+if nothing under the consumer's own source is itself JSX, plus `react`
+and `@types/react` resolvable (a peer dependency of this package — see
+`package.json`). Without it, an import of `@writtendev/ui` fails with
+`TS6142` ("emit an output that requires the '.tsx' extension"), on what
+otherwise looks like an unremarkable version bump. `web/tsconfig.json` in
+this repo carries this exact `jsx` setting for exactly this reason.
 
 ## Components
 
@@ -168,8 +183,16 @@ Variation comes from composition, children, and render props.
 **The gate.** `eslint.config.js` scopes a `no-restricted-syntax` block to
 `ui/src/**/*.{ts,tsx}`, run by `eslint . --max-warnings 0` (→
 `make check-ts`), that fails the build on an interpolated template
-literal, string concatenation, a raw hex color, a `[13px]`-style
-arbitrary-value utility, or an inline `style` prop. It does not assert
+literal, `+` string concatenation, a `.concat()`/`.replace()`/
+`.replaceAll()` call, an empty-separator `.join('')`, a raw hex color, an
+arbitrary-value utility (any `utility-[...]` bracket, not only a
+pixel/rem/em one), or an inline `style` prop. It is a set of pattern
+matches, not data-flow analysis, so it does not cover every conceivable
+route to a dynamically assembled class name — a class built through
+`Array.prototype.reduce`, `String.prototype.slice`/`padStart`/`padEnd`,
+or a helper function defined elsewhere that does the assembly for a
+caller here would all still pass clean; widen the rule set the same way
+if one of those is ever demonstrated in this package. Nor does it assert
 that a class name is a _real_ Tailwind utility — a typo'd `bg-acccent` is
 a literal string and passes clean, the same documented gap as a typo'd
 `@source` above.

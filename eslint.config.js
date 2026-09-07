@@ -67,6 +67,20 @@ export default tseslint.config(
     // utility. A typo'd `bg-acccent` is a literal string, passes this
     // rule, and Tailwind drops it silently — the same documented gap as
     // a typo'd `@source` (see ui/scripts/check-exports.mjs).
+    //
+    // Coverage, stated accurately rather than claimed as complete: the
+    // rules below catch template interpolation, `+` concatenation, and
+    // the `.concat()`/`.join('')`/`.replace()`/`.replaceAll()` method
+    // routes to a dynamically assembled class name. They do NOT catch
+    // every conceivable route — e.g. a class built via `Array.prototype
+    // .reduce`, `String.prototype.slice`/`padStart`/`padEnd`, computed
+    // property access into a dynamically-named object key, or a helper
+    // function defined outside this file that does the assembly for a
+    // caller here. `no-restricted-syntax` selectors are pattern matches,
+    // not data-flow analysis, so a sufficiently indirect route always
+    // remains open. What is here is the set of routes this PR's review
+    // actually demonstrated exit 0 undetected; widen further the same
+    // way if another one is demonstrated.
     files: ['ui/src/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-syntax': [
@@ -88,14 +102,45 @@ export default tseslint.config(
             "No dynamically constructed class names: string concatenation ('bg-' + variant) is invisible to a consumer Tailwind build scanning this package as source. Use a literal-string variant map instead.",
         },
         {
+          // `.concat()` and `.replace()`/`.replaceAll()` are unconditionally
+          // forbidden: every call to them assembles or rewrites a string at
+          // runtime, and this file has no legitimate use for any of the
+          // three (unlike `.join()` below, nothing here calls them on
+          // purpose).
+          selector: 'CallExpression[callee.property.name=/^(concat|replace|replaceAll)$/]',
+          message:
+            "No dynamically constructed class names: '.concat()'/'.replace()'/'.replaceAll()' build a class name invisible to a consumer Tailwind build scanning this package as source. Use a literal-string variant map instead.",
+        },
+        {
+          // `.join('')` only — not `.join(' ')` or a bare `.join()`.
+          // `.join('')` fuses fragments into a single class exactly like
+          // `.concat()` does (`[prefix, variant].join('')`), which is the
+          // failure mode this rule exists to catch. `.join(' ')` is the
+          // sanctioned composition pattern `ui/src/cn.ts` itself uses to
+          // combine whole, already-literal class strings with a space —
+          // forbidding it would break the one legitimate joining path this
+          // package has. A non-literal (variable) separator argument is a
+          // gap this selector does not cover; see the block comment above.
+          selector: "CallExpression[callee.property.name='join'][arguments.0.value='']",
+          message:
+            'No dynamically constructed class names: an empty-separator \'.join("")\' fuses fragments into a class name invisible to a consumer Tailwind build scanning this package as source. Use a literal-string variant map instead.',
+        },
+        {
           selector: 'Literal[value=/#[0-9a-fA-F]{3}/]',
           message:
             'No raw values: a hardcoded hex color references nothing in tokens.css. Add or use a --color-* token instead.',
         },
         {
-          selector: 'Literal[value=/\\[[0-9.]+(px|rem|em)\\]/]',
+          // Deliberately general: this is Tailwind's arbitrary-value
+          // bracket syntax itself (`utility-[...]`), not any particular
+          // unit inside it — the previous version of this rule enumerated
+          // `px|rem|em` and so missed a non-numeric arbitrary value
+          // entirely (`text-[red]`, `bg-[rgb(0,0,0)]`) along with numeric
+          // ones outside that list (`w-[50%]`, `p-[2ch]`, `text-[14pt]`,
+          // `leading-[1.7]`).
+          selector: 'Literal[value=/-\\[[^\\]]+\\]/]',
           message:
-            'No raw values: an arbitrary-value utility (e.g. p-[13px]) bypasses tokens.css. Add or use a token instead.',
+            'No raw values: an arbitrary-value utility (e.g. bg-[#fff], w-[50%]) bypasses tokens.css. Add or use a token instead.',
         },
         {
           selector: "JSXAttribute[name.name='style']",
