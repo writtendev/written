@@ -227,8 +227,9 @@ breaks one of these is a major finding, not a nit.
   gate is supposed to catch and confirm the command actually exits
   non-zero.
 
-The following six, scoped to `ui/`, come from `written-ui`'s own `AGENTS.md`
-and moved here verbatim with it in `WRTN-42`:
+The following six, scoped to `ui/`, come from the `ui` package's own brief
+from when it was a standalone repo, and moved here verbatim with it in
+`WRTN-42`:
 
 - **`ui/` ships as source, not as a compiled library.** Each consumer's
   Tailwind build scans it as its own code. Anything that assumes a build

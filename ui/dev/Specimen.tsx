@@ -165,7 +165,7 @@ function Specimen() {
   return (
     <main className="mx-auto flex min-h-svh max-w-4xl flex-col gap-12 bg-ground p-8 text-ink">
       <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">written-ui — specimen</h1>
+        <h1 className="text-2xl font-semibold">@writtendev/ui — specimen</h1>
         <p className="text-sm text-ink-muted">
           Every token in <code>tokens.css</code>, read live from the cascade. Dev harness only;
           ships to nobody. See <code>ui/README.md</code>.

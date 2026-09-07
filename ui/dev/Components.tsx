@@ -14,7 +14,7 @@ function Components() {
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-8 bg-ground p-8 text-ink">
       <Text as="h1" size="2xl" family="serif" weight="semibold">
-        written-ui — components
+        @writtendev/ui — components
       </Text>
       <Text tone="muted">
         Smoke test for Button, Badge, and Text. Dev harness only; ships to nobody.
