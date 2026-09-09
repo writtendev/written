@@ -1,0 +1,288 @@
+namespace written
+description "The SDLC vocabulary written ships to its users' writ repositories: review, comment, issue, project, cycle, document, section, label, workflow-state, and settings. Ported from writ's spec/*-ops.md files before WRIT-194 deleted the SDLC vocabulary from writ's own spec; see docs/sdlc-vocabulary.md for the design reasoning and the port audit."
+
+# review — code review: revisions, status, assignees, approvals, CI, labels, links.
+type review {
+  description "A code review: base/head revisions, lifecycle status, requested reviewers, approval votes, CI check results, labels, and cross-reference links."
+
+  op create 1, update 1 {
+    description "Review creation and metadata edits share one shape: title and description, both last-writer-wins."
+    title        string  lww
+    description  string  lww
+  }
+
+  op revision 1 {
+    description "A code revision push (including the first). base/head live here, not on create, so every revision shares one append pipeline."
+    base  git-oid  append
+    head  git-oid  append
+  }
+
+  op set-status 1 {
+    description "Lifecycle transition: draft, open, closed, merged. Producers must not transition out of merged; readers still fold it if they see one."
+    status        enum(draft, open, closed, merged)  lww
+    merge_commit  git-oid                            lww
+    reason        string                             lww
+  }
+
+  op assign 1 {
+    description "Add or remove requested reviewers (assignees), an add-wins OR-set over person identifiers."
+    add     [person-ref]  set-observed-remove  target(assignees)
+    remove  [person-ref]  set-observed-remove  target(assignees)
+  }
+
+  op approval 1 {
+    description "A review vote (approve/request-changes) or retraction (none) for a specific revision head, keyed by (subject, revision)."
+    revision  git-oid                              keyed-lww  key(subject person-ref, revision git-oid)
+    verdict   enum(approve, request-changes, none)  keyed-lww  key(subject person-ref, revision git-oid)
+    subject   person-ref                            keyed-lww  key(subject person-ref, revision git-oid)
+    message   text                                  keyed-lww  key(subject person-ref, revision git-oid)
+  }
+
+  op ci-status 1 {
+    description "A CI/check result attached to a revision head, keyed by (revision, name). revision and description get distinct targets so this op's map registers never collide with approval.revision's own (WRIT-198)."
+    revision      git-oid                                                          keyed-lww  key(revision git-oid, name string)  target(ci_revision)
+    name          string                                                           keyed-lww  key(revision git-oid, name string)
+    state         enum(pending, success, failure, error, cancelled, neutral, skipped)  keyed-lww  key(revision git-oid, name string)
+    url           string                                                           keyed-lww  key(revision git-oid, name string)
+    description   string                                                           keyed-lww  key(revision git-oid, name string)  target(ci_description)
+    started_at    timestamp                                                        keyed-lww  key(revision git-oid, name string)
+    completed_at  timestamp                                                        keyed-lww  key(revision git-oid, name string)
+    external_id   string                                                           keyed-lww  key(revision git-oid, name string)
+  }
+
+  op label 1 {
+    description "Add or remove label references, an add-wins OR-set over label object-refs."
+    add     [object-ref]  set-observed-remove  target(labels)
+    remove  [object-ref]  set-observed-remove  target(labels)
+  }
+
+  op link 1 {
+    description "Associate or retract (relation: none) a cross-reference to another object, keyed by target."
+    target       object-ref                  keyed-lww  key(target object-ref)
+    target_type  string                      keyed-lww  key(target object-ref)
+    relation     enum(fixes, relates, none)  keyed-lww  key(target object-ref)
+  }
+}
+
+# comment — threaded, anchored discussion attached to any subject object.
+type comment {
+  description "A unit of discussion attached to a subject object (review, issue, section, ...), optionally threaded and anchored to code."
+
+  op create 1 {
+    description "Brings the comment into existence: subject binding, initial text, optional reply-parent, optional anchor. subject is a two-field record, untyped because no catalogue value type expresses a record."
+    subject      untyped  create-once
+    text         text     lww
+    in_reply_to  string   create-once
+    anchor       anchor   create-once
+  }
+
+  op edit 1 {
+    description "Replacement markdown text; folds as the latest write, no delta reconstruction."
+    text  text  lww
+  }
+
+  op delete 1 {
+    description "Tombstones the comment. Terminal: a later edit on a deleted comment folds to nothing."
+    deleted  bool  tombstone
+  }
+
+  op resolve 1 {
+    description "Sets or clears thread resolution. resolved_by is required by producers when resolved is true and forbidden when false; that is a producer rule, not a schema-expressible constraint."
+    resolved     bool        lww
+    resolved_by  person-ref  lww
+  }
+}
+
+# issue — title, description, state, assignees, labels, links.
+type issue {
+  description "An issue: title, description, workflow state, assignees, labels, and cross-reference links."
+
+  op create 1, update 1 {
+    description "Issue creation and metadata edits share one shape. State, assignees, and labels arrive as their own ops so triage-now and triage-later share one pipeline."
+    title        string    lww
+    description  string    lww
+    priority     int       lww
+    estimate     number    lww
+    position     position  lww
+  }
+
+  op set-state 1 {
+    description "References a workflow-state object; lww, not lattice, because issues reopen and a semilattice would forbid that (see docs/sdlc-vocabulary.md)."
+    state     object-ref  lww
+    reason    string      lww
+    position  position    lww
+  }
+
+  op assign 1 {
+    description "Add or remove assignees, an add-wins OR-set over person identifiers."
+    add     [person-ref]  set-observed-remove  target(assignees)
+    remove  [person-ref]  set-observed-remove  target(assignees)
+  }
+
+  op label 1 {
+    description "Add or remove label references, an add-wins OR-set over label object-refs."
+    add     [object-ref]  set-observed-remove  target(labels)
+    remove  [object-ref]  set-observed-remove  target(labels)
+  }
+
+  op link 1 {
+    description "Associate or retract (relation: none) a cross-reference to another object, keyed by target."
+    target       object-ref                  keyed-lww  key(target object-ref)
+    target_type  string                      keyed-lww  key(target object-ref)
+    relation     enum(fixes, relates, none)  keyed-lww  key(target object-ref)
+  }
+}
+
+# project — a goal or initiative grouping issues.
+type project {
+  description "An initiative or goal with an explicit lifecycle status and a set of member issues."
+
+  op create 1, update 1 {
+    description "Project creation and metadata edits share one shape."
+    title        string  lww
+    description  string  lww
+  }
+
+  op set-status 1 {
+    description "Lifecycle transition: planned, active, paused, completed, canceled."
+    status  enum(planned, active, paused, completed, canceled)  lww
+    reason  string                                              lww
+  }
+
+  op add-issue 1, remove-issue 1 {
+    description "Issue membership, an add-wins OR-set; the converse 'what projects is this issue in' is a projection-layer query, not a field here."
+    issue  [object-ref]  set-observed-remove
+  }
+}
+
+# cycle — a time-boxed iteration grouping issues.
+type cycle {
+  description "A time-bounded iteration over the half-open interval [starts_at, ends_at) with a set of member issues. No status op: a cycle's lifecycle is a pure function of wall-clock time against its interval."
+
+  op create 1 {
+    description "Cycle creation: title and date interval together, so a concurrent date update can never interleave into a crossed window."
+    title        string     lww
+    starts_at    timestamp  lww
+    ends_at      timestamp  lww
+    description  string     lww
+  }
+
+  op update 1 {
+    description "Title/description edits only; dates change through set-dates instead."
+    title        string  lww
+    description  string  lww
+  }
+
+  op set-dates 1 {
+    description "Updates the cycle's date interval; both fields required together, same reasoning as create."
+    starts_at  timestamp  lww
+    ends_at    timestamp  lww
+  }
+
+  op add-issue 1, remove-issue 1 {
+    description "Issue membership, an add-wins OR-set."
+    issue  [object-ref]  set-observed-remove
+  }
+}
+
+# document — the container object: title, links, labels. Body content lives on sections.
+type document {
+  description "A long-form document container: title, cross-reference links, and free-form labels. Content lives on section objects, not here (see docs/sdlc-vocabulary.md)."
+
+  op create 1, update 1 {
+    description "Document creation and title edits share one shape."
+    title  string  lww
+  }
+
+  op link 1 {
+    description "Cross-reference link, keyed by target. relation is a free string here (not enum): document kinds are expressed as link relations, not a closed vocabulary (see docs/sdlc-vocabulary.md)."
+    target       object-ref  keyed-lww  key(target object-ref)
+    target_type  string      keyed-lww  key(target object-ref)
+    relation     string      keyed-lww  key(target object-ref)
+  }
+
+  op label 1 {
+    description "Add or remove labels, an add-wins OR-set over free-form strings (not label object-refs, unlike review/issue labels)."
+    add     [string]  set-observed-remove  target(labels)
+    remove  [string]  set-observed-remove  target(labels)
+  }
+}
+
+# section — a discrete, independently-ordered, independently-conflicting piece of a document.
+type section {
+  description "One section of a document: parent binding, fractional position, optional title, and a body that folds as a multi-value register (see docs/sdlc-vocabulary.md's document concurrency model)."
+
+  op create 1 {
+    description "Initializes a section referencing its parent document. document_id is immutable; body asserts the first version of a multi-value register."
+    document_id  object-ref  create-once
+    position     position    lww
+    title        string      lww
+    body         text        multi-value
+  }
+
+  op edit 1 {
+    description "Asserts a new version of the section body into the multi-value register: causally-maximal concurrent writes are all preserved, never merged, never picked between."
+    body  text  multi-value
+  }
+
+  op move 1 {
+    description "Reorders the section via fractional-index position, independent of any neighboring section's own position."
+    position  position  lww
+  }
+
+  op update 1 {
+    description "Updates section title or position without touching body."
+    title     string    lww
+    position  position  lww
+  }
+
+  op delete 1 {
+    description "Tombstones the section."
+    deleted  bool  tombstone
+  }
+}
+
+# label — a repo-global, named, colored category referenced by object-ref elsewhere.
+type label {
+  description "A repo-global named category with an optional color hint and description, referenced by object-ref from review/issue label sets."
+
+  op create 1, update 1 {
+    description "Label creation and property edits share one shape."
+    name         string  lww
+    color        string  lww
+    description  string  lww
+  }
+}
+
+# workflow-state — a repo-global board column: name, semantic type, position, color.
+type workflow-state {
+  description "A repo-global board column: display name, one of five semantic types, fractional column position, and optional color/description, referenced by object-ref from issue.set-state."
+
+  op create 1, update 1 {
+    description "State creation and property edits share one shape."
+    name         string                                                    lww
+    type         enum(backlog, unstarted, started, completed, canceled)    lww
+    position     position                                                  lww
+    color        string                                                    lww
+    description  string                                                    lww
+  }
+}
+
+# settings — singleton, repo-scoped, shared configuration.
+type settings {
+  description "Repository-scoped shared configuration (estimate scale, cycle cadence, timezone) folded onto a well-known singleton object id, unlike every other type here. Unknown keys are a producer/fold concern (docs/sdlc-vocabulary.md), not schema-expressible."
+
+  op set 1 {
+    description "Updates one or more configuration fields; at least one property required per producer rule, not expressible here."
+    name                  string                                               lww
+    identifier            string                                               lww
+    timezone              string                                               lww
+    estimate_scale        enum(none, fibonacci, exponential, linear, t-shirt)  lww
+    allow_zero_estimates  bool                                                 lww
+    cycles_enabled        bool                                                 lww
+    cycle_duration_weeks  int                                                  lww
+    cycle_start_day       int                                                  lww
+    cycle_cooldown_weeks  int                                                  lww
+    triage_enabled        bool                                                 lww
+  }
+}
