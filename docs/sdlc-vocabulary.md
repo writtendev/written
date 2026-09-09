@@ -22,9 +22,9 @@ because."
 
 All eight spec files were read at writ's `origin/main`, commit `f54c12d`
 (`WRIT-204`) through `7714159` (`WRIT-195`) — the commit `internal/schema`'s
-`go.mod` pin now points at — via `git show origin/main:<path>` against the
-read-only checkout at `/Users/matt/src/writtendev/writ`; nothing there was
-checked out or modified.
+`go.mod` pin now points at — via `git show origin/main:<path>` against a
+local, read-only clone of writ (`github.com/writtendev/writ`); nothing
+there was checked out or modified.
 
 ## Why the vocabulary looks like this
 
@@ -97,11 +97,14 @@ to reassemble one review.
 
 ### Issue shape
 
-An issue's shape is `{title, description, state, reason, assignees, labels,
-links}`. `create` carries only `title` and `description`; `state`,
-`assignees`, and `labels` arrive as their own ops, so "opened and triaged in
-one motion" and "opened, triaged later" share one append pipeline rather
-than needing two different creation shapes. `state` references a
+An issue's shape is `{title, description, priority, estimate, position,
+state, reason, assignees, labels, links}`. `create` and `update` share one
+body — `title`, `description`, `priority`, `estimate`, `position` — because
+both are `lww` edits of the same fields, differing only in which one
+happens to be the first write; `state`, `assignees`, and `labels` arrive as
+their own ops, so "opened and triaged in one motion" and "opened, triaged
+later" share one append pipeline rather than needing two different creation
+shapes. `state` references a
 `workflow-state` object rather than embedding a closed enum, because the
 board columns themselves are user-configurable, repo-scoped objects, not a
 vocabulary-level enum. `reason` is a free string, not a closed enum,
@@ -351,20 +354,56 @@ entry there.
 
 ## Port audit
 
-One row per `##`/`###` section of each deleted spec file (as read at
-`origin/main` in the writ checkout), naming where it landed: a `writ.schema`
-declaration, a section of the prose above, or an explicit "not ported,
-because." Deeper `####` subsections are folded into their parent row's
-notes rather than given their own row, except where the ticket's own
-Decision 4 calls one out as its own not-ported unit (the two GitHub
-appendices and the Linear appendix below). **The rule holds even for a
-container heading whose only content is introducing its own child
-subsections** — a file's Operation Vocabulary heading (spelled `##
-Operation Vocabulary`, `## 3. Operation Vocabulary`, `## Project Operation
-Vocabulary`, or `## Operations`, depending on the file) gets its own row,
-landed as a pointer to the op blocks it introduces, the same as every other
-row; it is not skipped just because its children already have rows of
-their own.
+The default is one row per `##`/`###` section of each deleted spec file (as
+read at `origin/main` in the writ checkout), naming where it landed: a
+`writ.schema` declaration, a section of the prose above, or an explicit
+"not ported, because." The default for a deeper `####` subsection is to
+fold into its parent row's notes rather than get a row of its own. Five
+named exceptions below account for every departure from those two
+defaults anywhere in the table; nothing else deviates.
+
+1. **Three appendices fold everything nested under them into one row
+   each**, per the ticket's own Decision 4: `review-ops.md`'s Appendix A
+   (and its three `###` mapping subsections), `issue-ops.md`'s Appendix A,
+   and `issue-ops.md`'s Appendix B — the Linear mapping (and its seven
+   nested `###`/`####` subsections).
+2. **A container heading whose only content is introducing its own child
+   subsections still gets its own row**, landed as a pointer to what it
+   introduces, the same as every other row — it is not skipped just
+   because its children already have rows of their own. Every file's
+   Operation Vocabulary heading (spelled `## Operation Vocabulary`, `## 3.
+   Operation Vocabulary`, `## Project Operation Vocabulary`, or `##
+   Operations`, depending on the file) is this case: it carries its own
+   content — the op-block/op-count landing given in the port audit's own
+   confirmation below — distinct from its children's rows.
+3. **`documents.md`'s op bodies sit one heading level deeper than every
+   other file's** — `####` under `### 3.1`/`### 3.2`, rather than directly
+   under `## 3. Operation Vocabulary` at `###` the way the other six op
+   vocabularies do. Its nine op-defining `####` headings (`create`,
+   `update`, `link`, `label` under 3.1; `create`, `edit`, `move`, `update`,
+   `delete` under 3.2) each get their own row, the same as every other
+   file's op headings do at `###`.
+4. **Two of `review-ops.md`'s `####` subsections carry a port
+   determination of their own, distinct from their parent op's**:
+   "Revision model and force-pushes" (under `### 2. revision`) and
+   "Authorization & Dismissal Model" (under `### 6. approval`) are each
+   "not ported, because" for a reason specific to that subsection, not the
+   reason already given for `revision` or `approval` in the row above —
+   so each gets its own row rather than being silently absorbed.
+5. **A `###` section folds into a sibling or parent row instead of
+   getting one of its own exactly when its content is entirely subsumed by
+   that row, with nothing left over to say**: `project-cycle.md`'s
+   `### Project Field Rules` and `### Cycle Field Rules` are both pure
+   field-rule tables and fold into the `## Field Rules & Merge Strategies`
+   row above (which already names both files' rule counts), and
+   `comments.md`'s `### General tree structure` folds into
+   `## Threading model` (the entirety of that section's content — nothing
+   exists under `## Threading model` besides this one child).
+   `project-cycle.md`'s `### Decisions & Rationale` is this same idea at
+   the container level, and is the mirror image of exception 2 above: unlike
+   an Operation Vocabulary heading, it carries no content of its own beyond
+   introducing seven independently-numbered `#### N.` decisions, so those
+   seven children get the rows and the container heading does not.
 
 ### `review-ops.md`
 
@@ -374,7 +413,7 @@ their own.
 | Decisions behind the vocabulary | "`review` — decisions carried across" above; op field descriptions in `writ.schema` |
 | Scope boundaries | Not ported, because — cross-references to the comment, cross-repo identifier, and fold-ordering specs, none of which this file itself declares vocabulary for |
 | Envelope Binding | Not ported, because — substrate-level (envelope shape, OID format), already covered by writ's own `op-envelope.md`, which WRIT-194 does not touch |
-| Operation Vocabulary (intro table) | The nine `op` blocks under `type review` |
+| Operation Vocabulary (intro table) | The eight `op` blocks under `type review`, declaring nine ops (`create`/`update` share one block) |
 | 1. `create` | `review`'s `create 1, update 1` op (shared shape) |
 | 2. `revision` | `review`'s `revision 1` op |
 | Revision model and force-pushes | Not ported, because — fold-time-derived behavior (revision numbers assigned at fold time, head-OID referencing) with no corresponding field; a producer/engine concern, not a schema declaration |
@@ -400,7 +439,7 @@ their own.
 | Scope boundaries | Not ported, because — cross-references to the comment, project/cycle, identifier, and fold specs |
 | Public Issue Intake and Bot Attribution | Not ported, because — policy guidance for external intake bridges and bot attribution; no corresponding field, and written is not an intake bridge |
 | Envelope Binding | Not ported, because — substrate-level, covered by writ's `op-envelope.md` |
-| Operation Vocabulary (intro table) | The six `op` blocks under `type issue` |
+| Operation Vocabulary (intro table) | The five `op` blocks under `type issue`, declaring six ops (`create`/`update` share one block) |
 | 1. `create` | `issue`'s `create 1, update 1` op (shared shape) |
 | 2. `update` | `issue`'s `create 1, update 1` op (shared shape) |
 | 3. `set-state` (incl. Unknown-State Reference Semantics) | `issue`'s `set-state 1` op; the unknown-reference tolerance is fold/producer behavior, not schema-expressible, and is noted here rather than given its own row |
@@ -426,13 +465,13 @@ their own.
 | Decisions & Rationale — 6. No Tombstones in v1 | Landed by omission — no `delete`/tombstone op on `project` or `cycle` — plus the prose explanation above |
 | Decisions & Rationale — 7. Deliberate Omissions (No PM-Tool Parity) | Not ported, because — explicitly out-of-scope PM-tool features (leads/owners, priority/health, nested projects, milestones/epics, capacity/velocity, manual ranking); listed in "`project` and `cycle` — decisions carried across" above as a record of the omission, not a field |
 | Envelope Binding | Not ported, because — substrate-level |
-| Project Operation Vocabulary (table) | The five `op` blocks under `type project` |
+| Project Operation Vocabulary (table) | The three `op` blocks under `type project`, declaring five ops (`create`/`update` share one block, `add-issue`/`remove-issue` share another) |
 | 1. `create` (project) | `project`'s `create 1, update 1` op |
 | 2. `update` (project) | `project`'s `create 1, update 1` op |
 | 3. `set-status` (project) | `project`'s `set-status 1` op |
 | 4. `add-issue` (project) | `project`'s `add-issue 1, remove-issue 1` op |
 | 5. `remove-issue` (project) | `project`'s `add-issue 1, remove-issue 1` op |
-| Cycle Operation Vocabulary (table) | The five `op` blocks under `type cycle` |
+| Cycle Operation Vocabulary (table) | The four `op` blocks under `type cycle`, declaring five ops (`add-issue`/`remove-issue` share one block) |
 | 1. `create` (cycle) | `cycle`'s `create 1` op |
 | 2. `update` (cycle) | `cycle`'s `update 1` op |
 | 3. `set-dates` (cycle) | `cycle`'s `set-dates 1` op |
@@ -501,7 +540,7 @@ each op's fields are described inline.
 | 1.1. Why Labels Are Collaborative Objects | "`label` — decisions carried across" above |
 | 1.2. Label Groups | Not ported, because — explicitly omitted from v1 in the source spec itself; no `group`/`parent_id` field here either, matching that omission |
 | 2. Envelope Binding | Not ported, because — substrate-level |
-| 3. Operation Vocabulary (intro table) | The two `op` blocks under `type label` |
+| 3. Operation Vocabulary (intro table) | The one `op` block under `type label`, declaring two ops (`create`/`update` share it) |
 | 3.1. `create` | `label`'s `create 1, update 1` op |
 | 3.2. `update` | `label`'s `create 1, update 1` op |
 | 4. Fold Semantics & Merge Strategies | `internal/schema/testdata/fieldrules/label.json` (6 rules) |
@@ -515,7 +554,7 @@ each op's fields are described inline.
 | 1.1. Why States Are Collaborative Objects | "`workflow-state` — decisions carried across" above |
 | 1.2. The Five Semantic Types | `type` field's `enum(backlog, unstarted, started, completed, canceled)` |
 | 2. Envelope Binding | Not ported, because — substrate-level |
-| 3. Operation Vocabulary (intro table) | The two `op` blocks under `type workflow-state` |
+| 3. Operation Vocabulary (intro table) | The one `op` block under `type workflow-state`, declaring two ops (`create`/`update` share it) |
 | 3.1. `create` | `workflow-state`'s `create 1, update 1` op |
 | 3.2. `update` | `workflow-state`'s `create 1, update 1` op |
 | 4. Fold Semantics & Merge Strategies | `internal/schema/testdata/fieldrules/workflow-state.json` (10 rules) |
@@ -614,9 +653,14 @@ per-type-breakdown-sums-to-116 arithmetic slip, not a mismatch in any
 individual type's rule count).
 
 The 43 `define-op` figure is independently confirmed by summing the port
-audit's own per-file op counts above: review 9, issue 6, project 5, cycle
-5, comment 4, document 4, section 5, label 2, workflow-state 2, settings 1
-— 43. The ticket's plan text states "45 ops"; that is the same kind of
-total-arithmetic slip as its "107 rules" figure, not a discrepancy in any
-individual type's op count, and not a mismatch with what `writ schema
-plan` actually reports above.
+audit's own per-file *op* counts above (not `op` **block** counts — see the
+per-file intro rows above, which give both): review 9, issue 6, project 5,
+cycle 5, comment 4, document 4, section 5, label 2, workflow-state 2,
+settings 1 — 43. Counting `op` blocks in `internal/schema/writ.schema`
+instead gives 35, because eight of those 35 blocks declare two ops each
+(every shared `create 1, update 1` and `add-issue 1, remove-issue 1`
+block); that shortfall is exactly the eight blocks the intro rows above
+call out, not eight missing ops. The ticket's plan text states "45 ops";
+that is the same kind of total-arithmetic slip as its "107 rules" figure,
+not a discrepancy in any individual type's op count, and not a mismatch
+with what `writ schema plan` actually reports above.
