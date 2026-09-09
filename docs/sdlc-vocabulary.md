@@ -292,8 +292,8 @@ what survives that deletion. A reader should be able to reconstruct every
 value below without the source spec.
 
 **`workflow-state-ops.md` §7, the five default starter states.** On
-`writ init`, if none exist yet, Writ seeds these five `workflow-state`
-objects (name, `type`, fractional `position`):
+`written init`, if none exist yet, a conforming client seeds these five
+`workflow-state` objects (name, `type`, fractional `position`):
 
 | Name | `type` | `position` |
 | --- | --- | --- |
