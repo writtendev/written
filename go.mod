@@ -2,7 +2,7 @@ module github.com/writtendev/written
 
 go 1.25.0
 
-require github.com/writtendev/writ v0.0.0-20260907012735-cbf074c86623
+require github.com/writtendev/writ v0.0.0-20260907225418-7714159ebe5a
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
