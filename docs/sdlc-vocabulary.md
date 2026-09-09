@@ -268,6 +268,72 @@ concurrent inserts land on the same key.
   to compute future cycles' UTC intervals; they say nothing about any one
   cycle's own dates.
 
+### Seed data carried forward for `written init`
+
+Per the ticket's Decision 4, none of this is schema-expressible — it is
+seed data a fresh-repository init step writes, not a `writ.schema`
+declaration — so none of it appears in `internal/schema/writ.schema`. It is
+transcribed verbatim here, not merely referenced, because `WRIT-194`
+deletes `workflow-state-ops.md` and `settings-ops.md` and this document is
+what survives that deletion. A reader should be able to reconstruct every
+value below without the source spec.
+
+**`workflow-state-ops.md` §7, the five default starter states.** On
+`writ init`, if none exist yet, Writ seeds these five `workflow-state`
+objects (name, `type`, fractional `position`):
+
+| Name | `type` | `position` |
+| --- | --- | --- |
+| Backlog | `backlog` | `"1"` |
+| Todo | `unstarted` | `"V"` |
+| In Progress | `started` | `"k"` |
+| Done | `completed` | `"s"` |
+| Canceled | `canceled` | `"zV"` |
+
+They are ordinary collaborative objects afterward: workspace members can
+rename, reorder, recolor, or replace them with standard operations.
+
+**`settings-ops.md` §1.6, the eleven fresh-repository defaults.** If a
+repository contains zero `settings` ops, the folded settings state is
+defined by these defaults:
+
+| Field | Default |
+| --- | --- |
+| `name` | `""` |
+| `identifier` | `""` |
+| `timezone` | `"UTC"` |
+| `estimate_scale` | `"fibonacci"` |
+| `allow_zero_estimates` | `false` |
+| `cycles_enabled` | `false` |
+| `cycle_duration_weeks` | `2` |
+| `cycle_start_day` | `1` (Monday) |
+| `cycle_cooldown_weeks` | `0` |
+| `triage_enabled` | `false` |
+| `unknown_keys` | `{}` |
+
+**`settings-ops.md` §1.3, the t-shirt display mapping.** An issue's
+`estimate` field always stores a plain number; when `estimate_scale` is
+`"t-shirt"`, clients MUST render it according to this normative mapping,
+and SHOULD fall back to the raw number for any value not listed here:
+
+| Numeric `estimate` | T-shirt display |
+| --- | --- |
+| `1` | `XS` |
+| `2` | `S` |
+| `3` | `M` |
+| `5` | `L` |
+| `8` | `XL` |
+
+(The `estimate_scale` enum value `t-shirt` itself — as opposed to this
+display mapping — is schema-expressible and is ported, as one member of
+`estimate_scale`'s `enum(...)` in `writ.schema`; see the port audit's
+§1.3 row.)
+
+**`settings-ops.md` §1.2, the singleton settings object id**, for
+completeness alongside the other three: `00000000000000000000000073657474`
+(`"sett"` in ASCII hex, padded with 24 leading zeroes). Conforming
+producers write to this object id for the canonical settings object.
+
 ### Decision: no `lattice` types (carried from the ticket)
 
 The ticket's plan flagged one open judgment call: whether `review.set-status
@@ -291,7 +357,14 @@ declaration, a section of the prose above, or an explicit "not ported,
 because." Deeper `####` subsections are folded into their parent row's
 notes rather than given their own row, except where the ticket's own
 Decision 4 calls one out as its own not-ported unit (the two GitHub
-appendices and the Linear appendix below).
+appendices and the Linear appendix below). **The rule holds even for a
+container heading whose only content is introducing its own child
+subsections** — a file's Operation Vocabulary heading (spelled `##
+Operation Vocabulary`, `## 3. Operation Vocabulary`, `## Project Operation
+Vocabulary`, or `## Operations`, depending on the file) gets its own row,
+landed as a pointer to the op blocks it introduces, the same as every other
+row; it is not skipped just because its children already have rows of
+their own.
 
 ### `review-ops.md`
 
@@ -327,6 +400,7 @@ appendices and the Linear appendix below).
 | Scope boundaries | Not ported, because — cross-references to the comment, project/cycle, identifier, and fold specs |
 | Public Issue Intake and Bot Attribution | Not ported, because — policy guidance for external intake bridges and bot attribution; no corresponding field, and written is not an intake bridge |
 | Envelope Binding | Not ported, because — substrate-level, covered by writ's `op-envelope.md` |
+| Operation Vocabulary (intro table) | The six `op` blocks under `type issue` |
 | 1. `create` | `issue`'s `create 1, update 1` op (shared shape) |
 | 2. `update` | `issue`'s `create 1, update 1` op (shared shape) |
 | 3. `set-state` (incl. Unknown-State Reference Semantics) | `issue`'s `set-state 1` op; the unknown-reference tolerance is fold/producer behavior, not schema-expressible, and is noted here rather than given its own row |
@@ -400,6 +474,7 @@ appendices and the Linear appendix below).
 | 1.3. Document Kinds via Link Relations & Labels | `document.link.relation` declared as `string`, not `enum(...)`; "`document` and `section` — decisions carried across" above |
 | 1.4. At-Mentions and Comments | Not ported, because — mention parsing is a client-rendering concern with no schema field; comment attachment to documents/sections already follows from `comment.subject` being generic, not a document-specific declaration |
 | 2. Envelope Binding | Not ported, because — substrate-level |
+| 3. Operation Vocabulary (intro) | The two op tables below it — 3.1 Document Operations, 3.2 Section Operations |
 | 3.1. Document Operations (table) | The `create`, `link`, `label` op blocks (and shared `update`) under `type document` |
 | `create` (document) | `document`'s `create 1, update 1` op |
 | `update` (document) | `document`'s `create 1, update 1` op |
@@ -426,6 +501,7 @@ each op's fields are described inline.
 | 1.1. Why Labels Are Collaborative Objects | "`label` — decisions carried across" above |
 | 1.2. Label Groups | Not ported, because — explicitly omitted from v1 in the source spec itself; no `group`/`parent_id` field here either, matching that omission |
 | 2. Envelope Binding | Not ported, because — substrate-level |
+| 3. Operation Vocabulary (intro table) | The two `op` blocks under `type label` |
 | 3.1. `create` | `label`'s `create 1, update 1` op |
 | 3.2. `update` | `label`'s `create 1, update 1` op |
 | 4. Fold Semantics & Merge Strategies | `internal/schema/testdata/fieldrules/label.json` (6 rules) |
@@ -439,12 +515,13 @@ each op's fields are described inline.
 | 1.1. Why States Are Collaborative Objects | "`workflow-state` — decisions carried across" above |
 | 1.2. The Five Semantic Types | `type` field's `enum(backlog, unstarted, started, completed, canceled)` |
 | 2. Envelope Binding | Not ported, because — substrate-level |
+| 3. Operation Vocabulary (intro table) | The two `op` blocks under `type workflow-state` |
 | 3.1. `create` | `workflow-state`'s `create 1, update 1` op |
 | 3.2. `update` | `workflow-state`'s `create 1, update 1` op |
 | 4. Fold Semantics & Merge Strategies | `internal/schema/testdata/fieldrules/workflow-state.json` (10 rules) |
 | 5. Column Ordering & Deterministic Tiebreak | Not schema-expressible — a query/projection sort rule (`ORDER BY position, op_id`), not a field |
 | 6. Distributed Referential Integrity: Unknown-State References | Not schema-expressible — fold-time tolerance of unresolved state references is engine/producer behavior |
-| 7. Default Starter States | Not ported, per the ticket's Decision 4 — seed data for a fresh repository is a `written init` concern, not a schema declaration |
+| 7. Default Starter States | Not schema-expressible, per the ticket's Decision 4 — seed data for a fresh repository is a `written init` concern, not a schema declaration; the five states themselves are recorded verbatim in "Seed data carried forward for `written init`" below |
 
 ### `settings-ops.md`
 
@@ -453,11 +530,12 @@ each op's fields are described inline.
 | 1. Scope & Object Model | `type settings` in `writ.schema` |
 | 1.1. Scoping | "`settings` — decisions carried across" above |
 | 1.2. Singleton Object Identifier | Not schema-expressible — the well-known object id (`00000000000000000000000073657474`) is a producer/runtime convention, not a schema field or constraint |
-| 1.3. Estimate Scale Vocabulary & T-Shirt Mapping | `estimate_scale` field's `enum(none, fibonacci, exponential, linear, t-shirt)`; "`settings` — decisions carried across" above |
+| 1.3. Estimate Scale Vocabulary & T-Shirt Mapping | The `estimate_scale` enum value `t-shirt` is ported as one member of `estimate_scale`'s `enum(none, fibonacci, exponential, linear, t-shirt)`; "`settings` — decisions carried across" above. The normative numeric-to-letter display mapping itself is not schema-expressible (it is a client rendering rule over a plain numeric `estimate` field, not a settings field) — recorded verbatim in "Seed data carried forward for `written init`" below |
 | 1.4. Cycle Cadence & Boundaries | `timezone`, `cycles_enabled`, `cycle_duration_weeks`, `cycle_start_day`, `cycle_cooldown_weeks` fields |
 | 1.5. Unknown Settings Key Preservation | Not schema-expressible — folding unrecognized `set` keys into `unknown_keys` is fold/engine behavior, not a declared field |
-| 1.6. Fresh Repository Defaults | Not ported, per the ticket's Decision 4 — default values for a repository with zero `settings` ops are a `written init` concern, not a schema declaration |
+| 1.6. Fresh Repository Defaults | Not schema-expressible, per the ticket's Decision 4 — default values for a repository with zero `settings` ops are a `written init` concern, not a schema declaration; the eleven defaults themselves are recorded verbatim in "Seed data carried forward for `written init`" below |
 | 2. Envelope Binding | Not ported, because — substrate-level |
+| 3. Operation Vocabulary (`op_version: 1`) (intro table) | The one `op` block under `type settings` |
 | 3.1. `set` | `settings`'s `set 1` op |
 | 4. Fold Semantics | `internal/schema/testdata/fieldrules/settings.json` (10 rules); "`settings` — decisions carried across" above |
 
@@ -476,11 +554,16 @@ ticket's own Decision 4:
    writ's own `op-envelope.md` and `forward-compatibility.md`, which
    WRIT-194 does not touch.
 3. **Seed data** — `workflow-state-ops.md` §7 (Default Starter States) and
-   `settings-ops.md` §1.2, §1.3's t-shirt/number mapping is ported (it's a
-   schema-level enum), but §1.6 (Fresh Repository Defaults) and the
-   singleton object id (§1.2) are not schema-expressible. These are a
-   `written init` concern — recorded here so they aren't lost, not
-   discharged by this ticket.
+   `settings-ops.md` §1.2 (Singleton Object Identifier), §1.3's t-shirt
+   display mapping, and §1.6 (Fresh Repository Defaults) are all not
+   schema-expressible; none of them appear in `writ.schema`. (Only the
+   enum *value* `t-shirt` from §1.3 is schema-expressible and is ported,
+   as one member of `estimate_scale`'s `enum(...)` — the numeric-to-letter
+   display mapping itself is not a field at all, so "ported" does not
+   apply to it.) These are a `written init` concern, not discharged by
+   this ticket — but all four are transcribed verbatim, not merely named,
+   in "Seed data carried forward for `written init`" above, so they
+   survive `WRIT-194` deleting the source files.
 4. **Fold/producer behavior with no corresponding field** — unknown-reference
    tolerance (issue state, labels), column sort order, settings' unknown-key
    folding, and the project/cycle reference-aliasing producer rule. None of
@@ -529,3 +612,11 @@ Exit code `0`. One `create` op (the schema object itself), ten
 (see that file's comment on the ticket's "107" figure being a
 per-type-breakdown-sums-to-116 arithmetic slip, not a mismatch in any
 individual type's rule count).
+
+The 43 `define-op` figure is independently confirmed by summing the port
+audit's own per-file op counts above: review 9, issue 6, project 5, cycle
+5, comment 4, document 4, section 5, label 2, workflow-state 2, settings 1
+— 43. The ticket's plan text states "45 ops"; that is the same kind of
+total-arithmetic slip as its "107 rules" figure, not a discrepancy in any
+individual type's op count, and not a mismatch with what `writ schema
+plan` actually reports above.
