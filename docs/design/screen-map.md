@@ -207,6 +207,7 @@ solo repo with no git remote configured would render `⟳ N to push` for
 ops that were never meant to go anywhere. `⟳ no remote` is the honest
 statement available instead; only a resolved, real remote name reaches
 `Store.SyncStatus`.
+
 `EventCreated`/`EventChanged` name the object that changed, so a
 screen currently showing that object re-queries it — a per-screen
 concern, `WRTN-19`/`20`/`21`'s to design. `EventReset` is different in
@@ -249,7 +250,7 @@ What each bar shows, by width:
 **Decision: a screen stack.** Activating a row pushes a new screen;
 `esc` pops back to the previous one. One global jump — the command
 palette's quick-switch commands — can jump directly to one of the
-three top-level screens (Inbox, Review list, Issue list), and two
+three top-level screens (Inbox, Review list, Issue list), and three
 direct keys (`g i` for inbox, `g r`/`g I` for the two top-level lists,
 exact bindings are `WRTN-5`'s call) do the same. The stack has exactly
 one owner: the root model holds it, and "which screen is current" is
