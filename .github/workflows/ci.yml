@@ -33,6 +33,7 @@ jobs:
               - '**/*.go'
               - 'go.mod'
               - 'go.sum'
+              - 'internal/schema/**'
               - 'Makefile'
               - '.github/workflows/ci.yml'
             ts:

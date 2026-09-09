@@ -1,0 +1,7 @@
+namespace written
+
+type probe {
+  op create 1 {
+    name  string  lastwriterwins
+  }
+}

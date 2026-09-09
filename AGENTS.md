@@ -47,6 +47,7 @@ Planned repository layout (see `ARCHITECTURE.md` for the rationale):
 /cmd/written      — the binary: TUI by default, `written web` later
 /internal/ui      — bubbletea models, widgets, theme
 /internal/app     — engine wiring, config, discovery
+/internal/schema  — writ.schema: the SDLC vocabulary written ships into its users' writ repositories
 /docs
 /ui               — shared TypeScript component package (npm workspace)
 /web              — embedded Vite client for `written web` (npm workspace; UI lands later)

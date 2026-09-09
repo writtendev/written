@@ -1,0 +1,7 @@
+namespace written
+
+type probe {
+  op approval 1 {
+    verdict  enum(approve, block)  keyed-lww
+  }
+}

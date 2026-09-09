@@ -10,3 +10,4 @@ screen wireframes, and guides for Written.
 - [Screen Map & Information Architecture](design/screen-map.md)
 - [Contributing Guide](../CONTRIBUTING.md)
 - [Agent Brief](../AGENTS.md)
+- [SDLC Vocabulary](sdlc-vocabulary.md)
