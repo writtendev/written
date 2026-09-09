@@ -23,6 +23,7 @@ your local git repository with zero network latency.
 - [Architecture & Settled Decisions](ARCHITECTURE.md) — Internal layout, technical decisions, and component boundaries.
 - [Contributing Guide](CONTRIBUTING.md) — Development workflow, DCO requirements, and guidelines.
 - [Agent Brief](AGENTS.md) — Instructions for AI coding assistants and automation agents.
+- [SDLC Vocabulary](docs/sdlc-vocabulary.md) — The `writ.schema` ported from writ's spec: design reasoning and the port audit.
 - [`ui/` package](ui/README.md) — Shared TypeScript component package consumed by `web/`.
 
 ## Quickstart
