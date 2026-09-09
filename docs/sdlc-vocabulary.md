@@ -104,13 +104,23 @@ both are `lww` edits of the same fields, differing only in which one
 happens to be the first write; `state`, `assignees`, and `labels` arrive as
 their own ops, so "opened and triaged in one motion" and "opened, triaged
 later" share one append pipeline rather than needing two different creation
-shapes. `state` references a
+shapes. Absent any `set-state` op the folded issue state defaults to the
+empty string; fold cannot know a workspace's default state, so a
+conforming client seeds the starter states and picks one on `issue
+create`. `state` references a
 `workflow-state` object rather than embedding a closed enum, because the
 board columns themselves are user-configurable, repo-scoped objects, not a
 vocabulary-level enum. `reason` is a free string, not a closed enum,
 carrying whatever external or human explanation accompanied the transition
 (e.g. an imported system's `"completed"` vs `"not_planned"`) without writ
 minting a vocabulary it can't enforce.
+
+The ten-field shape above is current, per `spec/issue-ops.md:314`; it
+supersedes the seven-field shape the ticket cited from `WRIT-10`, before
+`WRIT-106` added `priority`, `estimate`, and `position`. Writ's own
+`create` decision bullet still says `create` carries only `title` and
+`description`, contradicting its own normative body-schema table — a
+disagreement `WRIT-194` leaves with no source left to arbitrate.
 
 ### Comment threading and anchoring
 
@@ -362,11 +372,12 @@ fold into its parent row's notes rather than get a row of its own. Five
 named exceptions below account for every departure from those two
 defaults anywhere in the table; nothing else deviates.
 
-1. **Three appendices fold everything nested under them into one row
+1. **Four appendices fold everything nested under them into one row
    each**, per the ticket's own Decision 4: `review-ops.md`'s Appendix A
    (and its three `###` mapping subsections), `issue-ops.md`'s Appendix A,
-   and `issue-ops.md`'s Appendix B — the Linear mapping (and its seven
-   nested `###`/`####` subsections).
+   `issue-ops.md`'s Appendix B — the Linear mapping (and its seven
+   nested `###`/`####` subsections), and `comments.md`'s Appendix A (and
+   its four `###` subsections).
 2. **A container heading whose only content is introducing its own child
    subsections still gets its own row**, landed as a pointer to what it
    introduces, the same as every other row — it is not skipped just
