@@ -82,7 +82,7 @@ covering `ui/` and `web/`, and `ui`'s dev-harness build). `make build` and
 
 CI runs `make check-go` on Go changes, `make check-ts` on `ui`/`web`
 changes, and a release `build` job that always runs both — see `AGENTS.md`'s
-`## Dispatch` section for the review invariant this depends on (Go and
+`## Orchestrate` section for the review invariant this depends on (Go and
 TypeScript must stay independently testable).
 
 ## Tagging

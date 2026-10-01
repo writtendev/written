@@ -9,8 +9,8 @@ import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
 // ESLint's flat config does not read .gitignore the way Prettier does,
-// so without this, anything .gitignore excludes (most notably sibling
-// ticket worktrees under .claude/worktrees/) is still fair game for
+// so without this, anything .gitignore excludes (most notably nested
+// Claude Code subagent worktrees under .claude/worktrees/) is still fair game for
 // `eslint .` — silently breaking the "local gate and CI are the same
 // thing" claim in AGENTS.md the moment two tickets are checked out
 // side by side. Feeding .gitignore in here keeps the two ignore lists

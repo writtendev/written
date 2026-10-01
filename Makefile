@@ -16,7 +16,7 @@ GOLANGCI_LINT_VERSION := v1.64.8
 # -> flatted, which vendors golang/pkg/flatted/flatted.go). That would make
 # `go build/test/race` and `golangci-lint run` compile, run and lint
 # third-party code that arrived via npm, and make the Go package set differ
-# by whether `npm ci` had been run — exactly what `## Dispatch`'s
+# by whether `npm ci` had been run — exactly what `## Orchestrate`'s
 # independent-toolchains invariant forbids. Spelling out the roots keeps
 # node_modules out of scope regardless of what any dependency vendors, with
 # no dependency on node_modules being absent or on any npm package's
@@ -34,7 +34,7 @@ GO_PACKAGES := ./cmd/... ./internal/...
 # skipping it. This fails loudly instead of letting that happen quietly:
 # any `.go` file outside node_modules/ (pruned at any depth — third-party,
 # see GO_PACKAGES's comment above) and outside .claude/worktrees/ (nested
-# per-ticket worktrees, gitignored, not this module's own code) that also
+# Claude Code subagent worktrees, gitignored, not this module's own code) that also
 # isn't under cmd/ or internal/ trips it. Keep the two path exclusions
 # below in sync with GO_PACKAGES if that variable ever grows a third root.
 check-go-packages:
@@ -70,7 +70,7 @@ check-node-modules:
 # The TypeScript half of the release build: a static bundle `written web`
 # embeds at compile time. This is a Makefile target (not a bare npm command
 # in CI's YAML) so the always-on `build` job runs nothing that `make` doesn't
-# also know how to run — see AGENTS.md's `## Dispatch` review invariants.
+# also know how to run — see AGENTS.md's `## Orchestrate` review invariants.
 # `check-ts` also depends on it, so `make check` covers it too — see that
 # target's comment.
 #
@@ -113,10 +113,10 @@ check-go: check-go-packages test race lint
 # check-ts depends on build-ts so that `make check` actually covers what
 # CI's always-on `build` job runs: without this, a change that breaks
 # `vite build` (a missing entry file, a bad `rollupOptions.input`) can pass
-# `make check` and only fail in CI, which is exactly the drift `## Dispatch`
+# `make check` and only fail in CI, which is exactly the drift `## Orchestrate`
 # promises `make check` rules out. build-ts already needs npm/node the same
 # as the rest of this target, so this does not give check-go a Node
-# dependency — see `## Dispatch`'s independent-toolchains invariant.
+# dependency — see `## Orchestrate`'s independent-toolchains invariant.
 #
 # build-ts's own check-node-modules prerequisite runs first (before any of
 # the steps below), so a fresh clone sees the "run npm ci" message rather
@@ -137,7 +137,7 @@ check-go: check-go-packages test race lint
 # anything that breaks that build — but not on a typo'd `@source` path by
 # itself: Tailwind resolves an unmatched `@source` glob to zero classes
 # rather than an error, so that specific mistake has no gate today. See
-# ui/package.json's `build:harness` script and AGENTS.md's `## Dispatch`
+# ui/package.json's `build:harness` script and AGENTS.md's `## Workflow`
 # section.
 #
 # ui/scripts/check-tokens.mjs runs last, after build:harness, because one of
@@ -149,7 +149,7 @@ check-go: check-go-packages test race lint
 # build-ts builds web/, not ui's own harness.
 check-ts: build-ts
 	@# `npm ci` is CI's real gate (its lock-vs-manifest check), and it isn't
-	@# a Makefile target — see AGENTS.md's `## Dispatch` section. `--dry-run`
+	@# a Makefile target — see AGENTS.md's `## Orchestrate` section. `--dry-run`
 	@# runs that same check without touching node_modules, so a dependency
 	@# added to a workspace's package.json without a regenerated
 	@# package-lock.json fails here instead of only in CI.
@@ -166,7 +166,7 @@ check: check-go check-ts
 
 # The gate release-ui.yml runs on a `ui/vX.Y.Z` tag push, before
 # `npm publish`. Depends on check-ts so a tag cannot publish a tree that
-# doesn't pass it, keeping `## Dispatch`'s pipeline-integrity invariant
+# doesn't pass it, keeping `## Orchestrate`'s pipeline-integrity invariant
 # holding for the release workflow the same way check-go/check-ts hold it
 # for ci.yml: the workflow's build/lint/typecheck coverage still resolves
 # to a Makefile target. `TAG` only exists at release time (the workflow

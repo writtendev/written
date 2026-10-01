@@ -17,7 +17,6 @@ deliberately — never by drift.
 AGENTS.md is the only agent brief here. CLAUDE.md and GEMINI.md are
 one-line `@AGENTS.md` imports, so every toolchain reads the same text and
 there is nothing to keep in sync. Edit AGENTS.md; leave the two stubs alone.
-Same pattern as the rest of the studio.
 
 ## House rules
 
@@ -56,7 +55,7 @@ Planned repository layout (see `ARCHITECTURE.md` for the rationale):
 `ui/` and `web/` are npm workspaces declared in the root `package.json`, so
 `web` resolves `ui` locally with no publish step. They are a second,
 independently-testable language in this repo, not a second copy of it: see
-`## Dispatch` below for the invariant that keeps the two from needing each
+`## Orchestrate` below for the invariant that keeps the two from needing each
 other to be tested.
 
 `ui/` itself splits into `ui/src` — what ships, and the only directory a
@@ -73,93 +72,114 @@ pull `ui/src` into the harness's own build. See `ui/README.md`.
 ## Workflow
 
 Build and test commands: `make build` and `make test` (Go); `make check` is
-the one command that covers both languages for local development. CI runs
-the same Makefile targets, split across path-filtered jobs, rather than
-enumerating its own list — see `## Dispatch` below for exactly which target
-each job runs.
+the one command that covers both languages for local development, and
+`./scripts/check.sh` runs it. CI runs the same Makefile targets, split
+across path-filtered jobs, rather than enumerating its own list.
 
-This repo's pipeline is the four-skill dispatch flow (`dispatch`,
-`implement-ticket`, `adversarial-review`, `merge-queue`) shipped by the
-`studio` plugin from the `writtendev` marketplace, declared in
-`.claude/settings.local.json`. That file is internal dispatch-pipeline
-configuration — local, not tracked here (see `.gitignore`), and generated
-by tooling that is not public. It is not needed to build, test, or
-contribute to `written`; a fresh clone builds, tests, and passes `make
-check` without it, and it only matters if you're running the dispatch
-pipeline itself. `lerp.toml` is retired; there is no per-repo pipeline
-config file to read before changing how runs are queued — that policy
-lives in the dispatch skills themselves, maintained once outside this
-repo and repo-generic — and the `## Dispatch` section below is this
-repo's opt-in and configuration for it.
+`make check` runs the Go suite (`test`, `race`, `lint`) and the TypeScript
+gate. `check-ts` first guards that `node_modules` is actually installed
+(naming `npm ci` if not, rather than failing deep inside some other tool),
+then runs a lockfile-sync check equivalent to `npm ci`, typecheck across
+`ui`/`web`, `eslint . --max-warnings 0` and `prettier --check` at the repo
+root (covering `ui/` and `web/`), `ui/scripts/check-exports.mjs` (resolves
+every specifier `ui`'s `exports` map advertises through Node's real
+resolver, and checks the lockfile's recorded version for `ui` against
+`ui/package.json`'s — see `ui/README.md` and the seventh `ui/`-scoped review
+invariant below), and — via `check-ts`'s dependency on `build-ts` — the
+`vite build` that produces `web`'s embedded bundle. `ui` is `buildless:
+true` (see `## Layout`), so `build-ts` does not touch it; `check-ts` instead
+runs `ui`'s own dev-harness build as a separate, explicit step
+(`build:harness`) after `build-ts` completes — deleting that line would drop
+the only build coverage `ui/dev` has, not leave it covered by `build-ts`.
+That coverage has a known gap: `build:harness` runs the harness's Tailwind
+`@source '../src'` wiring through a real `tsc`+`vite` build, so it fails on
+anything that breaks the build, but Tailwind resolves an unmatched `@source`
+glob to zero classes rather than an error — a typo'd path still builds
+clean, so that specific mistake has no gate yet.
+`ui/scripts/check-tokens.mjs` runs last, right after `build:harness`, and
+cross-checks `ui/src/tokens.css` against that fresh build's stylesheet, plus
+itself, in three directions — every token `tokens.css` declares must reach
+the built `:root, :host` block; every name the build emits in a reset
+namespace (`--color-*`, `--text-*`, `--radius-*`) must trace back to a
+declaration `tokens.css`'s own parser found, catching a design value that
+reaches the cascade from outside `tokens.css`; and (needing no build at all)
+a loose namespace-independent scan of `tokens.css`'s own source must agree
+with what its strict parser found, catching a token shaped in a way the
+parser can't match in a namespace the reset check can't reach (`--font-*`,
+`--spacing`) — so the specimen page (`ui/dev/Specimen.tsx`, `WRTN-38`) and
+`tokens.css` cannot silently drift apart. It hardcodes no token names of its
+own. All of this must pass locally before any push, by an implementer, a
+fixer, or a human. CI runs the same Makefile targets rather than enumerating
+its own list: the path-filtered `go` job runs `make check-go`, the
+path-filtered `ts` job runs `make check-ts` (which already covers
+`build-ts`), and the always-on `build` job runs `make build` and `make
+build-ts` again — redundant with `check-ts` when a change touches
+`ui`/`web`, but the only place that still exercises `build-ts` when a change
+is Go-only and the `ts` job is path-filtered out (see
+`.github/workflows/ci.yml`). The property this guarantees is narrower than
+"every command a CI job runs is a Makefile target" and more useful: **a tree
+that passes `make check` locally will pass CI.** Two things in `ci.yml` sit
+outside a Makefile target on purpose, and neither can produce the drift this
+guarantees against — see the pipeline-integrity invariant below for why.
 
-## Dispatch
+This repo's pipeline is the `factory` plugin from the `mattwalters`
+marketplace (`mattwalters/skills` on GitHub), installed once per machine at
+user scope:
 
-The per-repo configuration the `dispatch`, `implement-ticket`,
-`adversarial-review` and `merge-queue` skills read. Those skills are
-maintained once, outside this repo, and are repo-generic; this section
-is how this repo opts into them. A field left unfilled is not a default —
-the skills are required to stop and say which one is missing rather than
-guess.
+```
+claude plugin marketplace add mattwalters/skills
+claude plugin install factory@mattwalters --scope user
+```
+
+`.claude/settings.json` declares the marketplace so Claude Code knows where
+it lives on a machine that hasn't added it yet. It deliberately does not
+enable or pin the plugin: a project pin registers a separate install for
+every checkout and worktree, and those drift from the user-scope version.
+None of this is needed to build, test, or contribute to `written`; a fresh
+clone builds, tests, and passes `make check` without it. The skills are
+maintained in `mattwalters/skills`, repo-generic, and the `## Orchestrate`
+section below is this repo's opt-in and configuration for them.
+
+The four: `implement-ticket` takes one Linear WRTN ticket to a CI-green
+draft PR in a detached git worktree; `adversarial-review` runs
+reviewer/fixer rounds on an open PR to a mergeable or capped verdict;
+`merge-queue` rebases and squash-merges every eligible, approved PR;
+`orchestrate` runs a batch of tickets through all three. Read a skill's
+`SKILL.md` before changing what its stage produces.
+
+## Orchestrate
+
+The `factory` pipeline — `orchestrate`, `implement-ticket`,
+`adversarial-review`, `merge-queue`, `decision-queue` — reads this section
+for its repo-specific configuration. A field left unfilled is not a
+default — the skills are required to stop and say which one is missing
+rather than guess.
 
 - **Linear team key**: `WRTN` (ticket ids are `WRTN-<n>`).
-- **Check command**: `make check` — runs the Go suite (`test`, `race`,
-  `lint`) and the TypeScript gate. `check-ts` first guards that
-  `node_modules` is actually installed (naming `npm ci` if not, rather than
-  failing deep inside some other tool), then runs a lockfile-sync check
-  equivalent to `npm ci`, typecheck across `ui`/`web`, `eslint . --max-warnings
-  0` and `prettier --check` at the repo root (covering `ui/` and `web/`),
-  `ui/scripts/check-exports.mjs` (resolves every specifier `ui`'s `exports`
-  map advertises through Node's real resolver, and checks the lockfile's
-  recorded version for `ui` against `ui/package.json`'s — see
-  `ui/README.md` and the seventh `ui/`-scoped review invariant below), and — via
-  `check-ts`'s dependency on `build-ts` — the `vite build` that produces
-  `web`'s embedded bundle. `ui` is `buildless: true` (see `## Layout`), so
-  `build-ts` does not touch it; `check-ts` instead runs `ui`'s own
-  dev-harness build as a separate, explicit step (`build:harness`) after
-  `build-ts` completes — deleting that line would drop the only build
-  coverage `ui/dev` has, not leave it covered by `build-ts`. That coverage
-  has a known gap: `build:harness` runs the harness's Tailwind
-  `@source '../src'` wiring through a real `tsc`+`vite` build, so it fails
-  on anything that breaks the build, but Tailwind resolves an unmatched
-  `@source` glob to zero classes rather than an error — a typo'd path still
-  builds clean, so that specific mistake has no gate yet.
-  `ui/scripts/check-tokens.mjs` runs last, right after `build:harness`, and
-  cross-checks `ui/src/tokens.css` against that fresh build's stylesheet,
-  plus itself, in three directions — every token `tokens.css` declares
-  must reach the built `:root, :host` block; every name the build emits in
-  a reset namespace (`--color-*`, `--text-*`, `--radius-*`) must trace
-  back to a declaration `tokens.css`'s own parser found, catching a design
-  value that reaches the cascade from outside `tokens.css`; and (needing
-  no build at all) a loose namespace-independent scan of `tokens.css`'s
-  own source must agree with what its strict parser found, catching a
-  token shaped in a way the parser can't match in a namespace the reset
-  check can't reach (`--font-*`, `--spacing`) — so the specimen page
-  (`ui/dev/Specimen.tsx`, `WRTN-38`) and `tokens.css` cannot silently
-  drift apart. It hardcodes no token names of its own. All of this
-  must pass locally before any push, by an implementer, a fixer, or a
-  human. CI
-  runs the same Makefile
-  targets rather than enumerating its own list: the path-filtered `go` job
-  runs `make check-go`, the path-filtered `ts` job runs `make check-ts`
-  (which already covers `build-ts`), and the always-on `build` job runs
-  `make build` and `make build-ts` again — redundant with `check-ts` when a
-  change touches `ui`/`web`, but the only place that still exercises
-  `build-ts` when a change is Go-only and the `ts` job is path-filtered out
-  (see `.github/workflows/ci.yml`). The property this guarantees is
-  narrower than "every command a CI job runs is a Makefile target" and more
-  useful: **a tree that passes `make check` locally will pass CI.** Two
-  things in `ci.yml` sit outside a Makefile target on purpose, and neither
-  can produce the drift this guarantees against — see the pipeline-integrity
-  invariant below for why.
+- **Check command**: `./scripts/check.sh`, which runs `make check` (see
+  `## Workflow` above for what that covers). It must pass locally before
+  any push, by an implementer, a fixer, or a human.
 - **Base branch**: `main`.
-- **Worktrees**: `.claude/worktrees/` — one worktree per ticket, named for it.
-- **Run manifest**: `.claude/worktrees/dispatch-manifest.md`.
+- **Worktrees**: `$HOME/ops/worktrees/writtendev/written/` — one detached
+  worktree per ticket, named for the ticket, outside the repo so no
+  `AGENTS.md`/`CLAUDE.md` above the checkout loads into a ticket's run.
+- **Review invariants**: `### Review invariants` below.
+- **Stop-list**: `### Stop-list` below.
+- **Write window**: `none`.
+
+Expand `$HOME` to an absolute path before writing the worktrees value into
+a prompt or using it in a file operation; a shell expands it, but
+Read/Edit/Write calls and prompt placeholders do not. The path sits under
+`$HOME/ops/worktrees` because that is the only directory the unattended
+orchestrate job can write to. It is shared by every checkout of written on
+the machine, so run factory skills against written from one checkout at a
+time.
 
 Statuses are Linear's stock ones — `Todo` → `In Progress` → `In Review` →
 `Done` — with two workspace labels doing the rest: `approved-to-merge` on a
 ticket in `In Review` means a human has approved its merge and it is in the
 merge queue; `needs-attention` means it needs a human and keeps whatever
-status it already had. `Backlog` is off-limits to dispatch: promoting a
+status it already had. `Backlog` is off-limits to orchestrate: promoting a
 ticket to `Todo` is the only signal that it is available to work.
 
 ### Review invariants
@@ -294,3 +314,28 @@ The following, scoped to `ui/`, originates here in `WRTN-37`:
   PR that changes the surface without bumping the version, or bumps the
   wrong segment, is a finding even though `make check` stays green either
   way.
+
+### Stop-list
+
+A change touching any of these waits for a human to merge it, whatever
+mode the run is in. Each is load-bearing beyond the change itself or a
+rule about when a run stops, and a change that loosens one should not
+approve itself.
+
+- **CI and release config**: `.github/workflows/`, including
+  `release-ui.yml`'s npm publish.
+- **Release and publish gates**: the `check-ui-release` Makefile target
+  and `ui/scripts/check-release-tag.mjs`.
+- **The DCO and commit sign-off setup**: `.githooks/` and the DCO section
+  of `CONTRIBUTING.md`.
+- **The approval and signing path**: any code that produces, requests, or
+  confirms an approval or signature, and the `written web` bind address —
+  the two review invariants above that keep the web server local and
+  without signing authority.
+- **The shipped writ schema**: `internal/schema/` — the `writ.schema`
+  written ships into its users' repositories is a schema other clients
+  read, so changing it is a migration in all but name.
+- **The pipeline's own configuration**: this `## Orchestrate` section (its
+  fields, `### Review invariants`, and this stop-list), `scripts/check.sh`,
+  the `check`/`check-go`/`check-ts` Makefile targets, and
+  `.claude/settings.json`.

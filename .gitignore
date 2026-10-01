@@ -54,11 +54,12 @@ dist/
 
 # Scratch & temporary files
 tmp/
+
+# Local agent tooling written does not ship: hand-made skill symlinks for
+# non-Claude toolchains, the worktrees Claude Code makes for isolated
+# subagents, and per-user settings. Factory per-ticket worktrees live
+# outside the repo (AGENTS.md ## Orchestrate).
 .agents/skills/
+.claude/skills/
 .claude/worktrees/
 .claude/settings.local.json
-
-# Symlinks to the shared agent skills in the parent studio repo. They
-# point outside this repo, and this repo is public, so they must never
-# be committed — same reasoning as the worktrees above.
-.claude/skills/

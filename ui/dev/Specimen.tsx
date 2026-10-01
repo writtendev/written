@@ -7,7 +7,7 @@ import { groupTokenNames, pairTextRamp, parseTokenNames } from './tokens'
 // live cascade value (var(--name) for the swatch, getComputedStyle for the
 // printed label). Nothing on this page copies a value out of tokens.css;
 // changing a value there, or adding a new token, changes this page with no
-// other edit. See AGENTS.md's `## Dispatch` and WRTN-38's ticket plan.
+// other edit. See AGENTS.md's `## Orchestrate` and WRTN-38's ticket plan.
 
 const ACCENT_NAME = '--color-accent'
 const ACCENT_HOVER_NAME = '--color-accent-hover'

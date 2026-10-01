@@ -237,8 +237,8 @@ func TestFieldRulesMatchVendoredTables(t *testing.T) {
 	}
 }
 
-// TestInvalidFixturesRejected proves the gate can fail (AGENTS.md's ##
-// Dispatch review invariant: "a gate which cannot fail is not a gate").
+// TestInvalidFixturesRejected proves the gate can fail (AGENTS.md's ###
+// Review invariants: "a gate which cannot fail is not a gate").
 // Each fixture under testdata/invalid/ is a minimal writ.schema that a
 // careless edit to this package's schema, or a neutered parser, could
 // plausibly let through; Parse must reject every one of them with a file,
