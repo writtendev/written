@@ -3,7 +3,7 @@ import { cn } from './cn'
 
 // Variant classes are whole literal strings, selected by key — never
 // assembled from fragments (`bg-${variant}` is exactly what the repo
-// AGENTS.md `## Dispatch` review invariants forbid; a Tailwind build that
+// AGENTS.md `### Review invariants` forbid; a Tailwind build that
 // scans this package as source cannot see a class name built at runtime).
 // See ui/README.md's `## Components` section.
 //

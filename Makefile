@@ -34,7 +34,7 @@ GO_PACKAGES := ./cmd/... ./internal/...
 # skipping it. This fails loudly instead of letting that happen quietly:
 # any `.go` file outside node_modules/ (pruned at any depth — third-party,
 # see GO_PACKAGES's comment above) and outside .claude/worktrees/ (nested
-# per-ticket worktrees, gitignored, not this module's own code) that also
+# Claude Code subagent worktrees, gitignored, not this module's own code) that also
 # isn't under cmd/ or internal/ trips it. Keep the two path exclusions
 # below in sync with GO_PACKAGES if that variable ever grows a third root.
 check-go-packages:

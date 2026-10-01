@@ -3,8 +3,8 @@
  *
  * Every layer above this file references these custom properties; nothing
  * above it may hardcode a value (no hex codes, no pixel literals, no named
- * colors inline in a component — see the repo AGENTS.md `## Dispatch`
- * review invariants). A component that needs a value it doesn't have adds
+ * colors inline in a component — see the repo AGENTS.md `### Review
+ * invariants`). A component that needs a value it doesn't have adds
  * a token here; it does not inline one locally.
  *
  * Naming rule: a token name says what the value is *for*, never what the

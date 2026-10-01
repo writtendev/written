@@ -17,7 +17,6 @@ deliberately — never by drift.
 AGENTS.md is the only agent brief here. CLAUDE.md and GEMINI.md are
 one-line `@AGENTS.md` imports, so every toolchain reads the same text and
 there is nothing to keep in sync. Edit AGENTS.md; leave the two stubs alone.
-Same pattern as the rest of the studio.
 
 ## House rules
 
@@ -175,9 +174,6 @@ Read/Edit/Write calls and prompt placeholders do not. The path sits under
 orchestrate job can write to. It is shared by every checkout of written on
 the machine, so run factory skills against written from one checkout at a
 time.
-
-The pipeline keeps no run manifest: per-ticket state lives in Linear and on
-the PR.
 
 Statuses are Linear's stock ones — `Todo` → `In Progress` → `In Review` →
 `Done` — with two workspace labels doing the rest: `approved-to-merge` on a
