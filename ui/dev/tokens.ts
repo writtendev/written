@@ -4,7 +4,7 @@
 // Specimen.tsx (via a `?raw` import of tokens.css, for rendering) and
 // ../scripts/check-tokens.mjs (the build gate, run under plain Node, for
 // asserting the built stylesheet matches). Neither hand-maintains a
-// parallel list of token names — see AGENTS.md's `## Dispatch` and
+// parallel list of token names — see AGENTS.md's `## Orchestrate` and
 // WRTN-38's ticket plan for why a specimen page, or a gate, that can drift
 // from the design system is worse than none.
 //

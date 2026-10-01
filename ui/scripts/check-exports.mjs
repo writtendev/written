@@ -13,7 +13,7 @@
 // which error a contributor sees first changes. See the Makefile's
 // `check-ts` comment for the full ordering.
 //
-// What this does NOT assert (see AGENTS.md's `## Dispatch` section and
+// What this does NOT assert (see AGENTS.md's `## Orchestrate` section and
 // WRTN-37's ticket plan for the full reasoning):
 //   - Completeness. Nothing here knows a consumer wanted an entry that
 //     isn't in the map — a missing entry is a loud build failure the first

@@ -18,7 +18,7 @@ That one fact drives two rules for everything in this package:
    variables, never raw values — no hex codes, no pixel literals, no named
    colors inline in a component.
 
-See the repository's `AGENTS.md` `## Dispatch` → `### Review invariants`
+See the repository's `AGENTS.md` `## Orchestrate` → `### Review invariants`
 for the full list this package is held to.
 
 ## Consumers
@@ -246,7 +246,7 @@ While `0.x`:
 
 Whether a change _should_ have bumped the version is a review call, not
 something `make check` can determine on its own — see the repository's
-`AGENTS.md` `## Dispatch` → `### Review invariants`.
+`AGENTS.md` `## Orchestrate` → `### Review invariants`.
 
 **Releasing a version, once it's bumped and merged:** a maintainer tags
 `ui/vX.Y.Z` (matching the version just merged into `ui/package.json`) and

@@ -33,7 +33,7 @@ jobs:
 
       # Release policy, not build/lint/test/typecheck, so this is
       # legitimately outside a Makefile target — the same carve-out
-      # ci.yml's fan-in job already sits in (see AGENTS.md's `## Dispatch`
+      # ci.yml's fan-in job already sits in (see AGENTS.md's `## Orchestrate`
       # pipeline-integrity invariant). A tag pushed from a commit that was
       # never merged to main must not publish.
       #

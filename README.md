@@ -53,7 +53,7 @@ Run tests:
 make test
 ```
 
-Run the full check (Go and TypeScript; CI runs these same Makefile targets, see `AGENTS.md`'s `## Dispatch` section):
+Run the full check (Go and TypeScript; CI runs these same Makefile targets, see `AGENTS.md`'s `## Workflow` section):
 
 ```bash
 make check

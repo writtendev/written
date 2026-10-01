@@ -13,7 +13,7 @@
 //     principle be publishing against a lockfile that has since drifted
 //     again (e.g. a hand-edit that skipped `npm install --package-lock-only`).
 //
-// What this does NOT assert (see AGENTS.md's `## Dispatch` section and
+// What this does NOT assert (see AGENTS.md's `## Orchestrate` section and
 // WRTN-44's ticket plan for the full reasoning):
 //   - That the version is unpublished. npm's own `EPUBLISHCONFLICT` is that
 //     gate, and it fails loudly on `npm publish` itself — duplicating it

@@ -5,7 +5,7 @@ import { Badge, Button, Text, type BadgeTone, type ButtonVariant } from '@writte
 // row of buttons, a row of badges, and a heading, imported through the
 // public specifier (`@writtendev/ui`) so `build:harness` exercises the
 // same `exports` map a real consumer resolves. See ui/README.md's
-// `## Components` section and AGENTS.md's `## Dispatch`.
+// `## Components` section and AGENTS.md's `## Orchestrate`.
 
 const BUTTON_VARIANTS: ButtonVariant[] = ['primary', 'secondary', 'ghost']
 const BADGE_TONES: BadgeTone[] = ['neutral', 'accent', 'success', 'danger', 'outline']
